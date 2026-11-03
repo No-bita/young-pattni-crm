@@ -1,0 +1,48 @@
+# Springboard v1 Worker configuration.
+# Every REPLACE_ value is a placeholder: fill it in after you create the resources in the NEW
+# Springboard Cloudflare account. Nothing here points at Alma, Collectr or Lekho resources.
+#
+# Secrets are NOT stored in this file. Add them with `wrangler secret put` only AFTER the
+# placeholders below are filled in (each `secret put` deploys a new version immediately):
+#   META_APP_SECRET       Meta app secret, used to verify webhook signatures
+#   META_VERIFY_TOKEN     a random string you also enter in Meta's webhook settings
+#   WA_TOKEN_<REF>        one per WhatsApp number, e.g. WA_TOKEN_MAIN (REF is entered on the Number screen)
+
+name = "REPLACE_WORKER_NAME"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[vars]
+GRAPH_API_VERSION = "v23.0"
+MAX_CAMPAIGN_AUDIENCE = "1000"   # per-campaign recipient cap
+SEND_INTERVAL_MS = "100"         # pause between sends inside a queue batch (~10 per second)
+
+[[d1_databases]]
+binding = "DB"
+database_name = "REPLACE_D1_DATABASE_NAME"
+database_id = "REPLACE_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[[queues.producers]]
+binding = "CAMPAIGN_QUEUE"
+queue = "REPLACE_QUEUE_NAME"
+
+[[queues.consumers]]
+queue = "REPLACE_QUEUE_NAME"
+max_batch_size = 10
+max_batch_timeout = 1
+max_concurrency = 1
+max_retries = 3
+
+[triggers]
+crons = ["* * * * *"]            # launches scheduled campaigns when they fall due
+
+[observability]
+enabled = true
