@@ -8,7 +8,7 @@
 #   META_VERIFY_TOKEN     a random string you also enter in Meta's webhook settings
 #   WA_TOKEN_<REF>        one per WhatsApp number, e.g. WA_TOKEN_MAIN (REF is entered on the Number screen)
 
-name = "REPLACE_WORKER_NAME"
+name = "springboard-v1"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
@@ -26,16 +26,16 @@ SEND_INTERVAL_MS = "100"         # pause between sends inside a queue batch (~10
 
 [[d1_databases]]
 binding = "DB"
-database_name = "REPLACE_D1_DATABASE_NAME"
-database_id = "REPLACE_D1_DATABASE_ID"
+database_name = "springboard-db"
+database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
 [[queues.producers]]
 binding = "CAMPAIGN_QUEUE"
-queue = "REPLACE_QUEUE_NAME"
+queue = "campaign-queue"
 
 [[queues.consumers]]
-queue = "REPLACE_QUEUE_NAME"
+queue = "campaign-queue"
 max_batch_size = 10
 max_batch_timeout = 1
 max_concurrency = 1
