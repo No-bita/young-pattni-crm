@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api.js";
 import { Loading } from "./components/ui.jsx";
+import { SendIcon, PeopleIcon, ChatIcon, PhoneIcon, ShieldIcon } from "./components/icons.jsx";
 import Login from "./pages/Login.jsx";
 import Contacts from "./pages/Contacts.jsx";
 import Campaigns from "./pages/Campaigns.jsx";
@@ -45,29 +46,35 @@ export default function App() {
   else if (section === "admin" && me.isAdmin) page = <Admin />;
   else page = <Campaigns />;
 
-  const nav = [["campaigns", "Campaigns"], ["contacts", "Contacts"], ["inbox", "Inbox"], ["number", "WhatsApp number"]];
-  if (me.isAdmin) nav.push(["admin", "Admin"]);
+  const nav = [
+    ["campaigns", "Campaigns", <SendIcon key="i" />],
+    ["contacts", "Contacts", <PeopleIcon key="i" />],
+    ["inbox", "Inbox", <ChatIcon key="i" />],
+    ["number", "Number", <PhoneIcon key="i" />],
+  ];
+  if (me.isAdmin) nav.push(["admin", "Admin", <ShieldIcon key="i" />]);
 
   const signOut = async () => {
     await api("/auth/logout", { method: "POST" }).catch(() => {});
     setMe(null);
   };
 
+  const active = section || "campaigns";
   return (
-    <div className="shell">
-      <aside className="side">
-        <div className="brand">Springboard</div>
-        <nav className="nav">
-          {nav.map(([key, label]) => (
-            <a key={key} href={`#/${key}`} className={(section || "campaigns") === key ? "on" : ""}>{label}</a>
-          ))}
-        </nav>
-        <div className="foot">
-          <div>{me.name}</div>
-          <button className="secondary" style={{ marginTop: 8 }} onClick={signOut}>Sign out</button>
+    <>
+      <div className="shell">
+        <div className="row" style={{ marginBottom: 10 }}>
+          <span className="disp grow" style={{ fontSize: 15, fontWeight: 700 }}>PJM Youth CRM</span>
+          <span className="small mut">{me.name}</span>
+          <button className="secondary" style={{ padding: "6px 12px", fontSize: 13 }} onClick={signOut}>Sign out</button>
         </div>
-      </aside>
-      <main className="main">{page}</main>
-    </div>
+        {page}
+      </div>
+      <nav className="pillnav">
+        {nav.map(([key, label, icon]) => (
+          <a key={key} href={`#/${key}`} className={active === key ? "on" : ""}>{icon}{label}</a>
+        ))}
+      </nav>
+    </>
   );
 }

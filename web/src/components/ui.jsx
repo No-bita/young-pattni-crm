@@ -6,6 +6,16 @@ export function Pill({ status, children }) {
   return <span className={`pill ${cls}`}>{children || label}</span>;
 }
 
+// Semantic tinted status strip: ok -> g, warn -> a, bad -> r, anything else -> n.
+export function Strip({ tone, children, dot = true }) {
+  return (
+    <span className={`strip ${tone}`}>
+      {dot && <span className="dot"></span>}
+      {children}
+    </span>
+  );
+}
+
 export function ErrorBox({ error, onRetry }) {
   if (!error) return null;
   const blockers = error.data?.blockers;
@@ -76,4 +86,15 @@ export function useAction() {
     }
   }, []);
   return { busy, error, run, setError };
+}
+
+// Initials avatar for contact rows.
+export function Ava({ name }) {
+  const text = (name || "").trim();
+  let letters = "?";
+  if (text) {
+    const parts = text.split(/\s+/);
+    letters = (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+  }
+  return <div className="ava">{letters}</div>;
 }

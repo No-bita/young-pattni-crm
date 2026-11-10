@@ -6,6 +6,7 @@ export default function Admin() {
   return (
     <>
       <div className="head"><h1>Accounts</h1><button className="secondary" onClick={reload}>Refresh</button></div>
+      <div className="sub">Every CRM account on this deployment</div>
       <div className="card">
         <ErrorBox error={error} onRetry={reload} />
         {loading && !data ? <Loading /> : data && data.accounts.length === 0 ? <Empty>No accounts.</Empty> : data && (
@@ -16,11 +17,11 @@ export default function Admin() {
                 <tr key={a.id}>
                   <td>{a.name} {a.isAdmin && <span className="pill neutral">admin</span>}</td>
                   <td className="mono">{a.login}</td>
-                  <td>{a.activeNumber || <span className="muted">None</span>}</td>
+                  <td>{a.activeNumber || <span className="mut">None</span>}</td>
                   <td>{a.contacts}</td><td>{a.suppressed}</td><td>{a.sent7d}</td>
                   <td>{a.failed7d ? <span className="pill bad">{a.failed7d}</span> : 0}</td>
                   <td>{a.activeCampaigns}</td>
-                  <td className="muted">{fmtDate(a.createdAt)}</td>
+                  <td className="mut">{fmtDate(a.createdAt)}</td>
                 </tr>
               ))}</tbody>
             </table>
