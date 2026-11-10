@@ -13,7 +13,7 @@ Open questions are kept separately in `UNKNOWNS.md`. Read that before deploying.
 ```
 src/index.js            routes, queue consumer, cron
 src/routes/*.js         auth, contacts, templates, senders (numbers), campaigns, inbox, webhook, admin
-src/lib/send.js         the one gate every outbound message passes through
+src/lib/send.js         the one gate every outbound message passes through.
 src/lib/campaigns.js    audience, launch, queue processing, scheduler
 src/whatsapp/*.js       Graph API client, signature check, webhook parser
 migrations/0001_init.sql
