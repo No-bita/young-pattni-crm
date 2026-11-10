@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { api, fmtDate } from "../api.js";
-import { Empty, ErrorBox, Loading, useAction, useApi } from "../components/ui.jsx";
+import { Ava, Empty, ErrorBox, Loading, Strip, useAction, useApi } from "../components/ui.jsx";
 
 // Minimal RFC 4180-style CSV parser (quoted fields, escaped quotes, CRLF).
 export function parseCsv(text) {
@@ -71,7 +71,7 @@ function Importer({ onDone }) {
                 <tbody>{parsed.rows.slice(0, 5).map((r, i) => <tr key={i}><td>{r.phone}</td><td>{r.name}</td></tr>)}</tbody>
               </table>
             </div>
-            <div className="muted small">Numbers without a country code are treated as Indian (+91). Contacts who opted out stay opted out.</div>
+            <div className="mut small">Numbers without a country code are treated as Indian (+91). Contacts who opted out stay opted out.</div>
             <div><button disabled={busy} onClick={submit}>{busy ? "Importing…" : `Import ${parsed.rows.length} rows`}</button></div>
           </>
         )}
@@ -136,10 +136,11 @@ export default function Contacts() {
           <button className="secondary" onClick={() => setPanel(panel === "import" ? null : "import")}>Import CSV</button>
         </div>
       </div>
+      <div className="sub">Everyone you can message on WhatsApp</div>
       {panel === "add" && <AddContact onDone={reload} />}
       {panel === "import" && <Importer onDone={reload} />}
       <div className="card">
-        <div className="row" style={{ marginBottom: 12 }}>
+        <div className="row" style={{ marginBottom: 8 }}>
           <input className="grow" placeholder="Search name or number" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
           <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(0); }}>
             <option value="all">All contacts</option>
@@ -152,24 +153,26 @@ export default function Contacts() {
           <Empty>{q || filter !== "all" ? "No contacts match." : "No contacts yet. Add one or import a CSV."}</Empty>
         ) : data && (
           <>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Name</th><th>Phone</th><th>Status</th><th>Last message</th><th>Added</th></tr></thead>
-                <tbody>
-                  {data.contacts.map((c) => (
-                    <tr key={c.id}>
-                      <td>{c.name || <span className="muted">No name</span>}</td>
-                      <td className="mono">{c.phone}</td>
-                      <td>{c.suppressed ? <span className="pill bad" title={`Opted out ${fmtDate(c.suppressedAt)}`}>Opted out · {fmtDate(c.suppressedAt)}</span> : <span className="pill ok">Can be messaged</span>}</td>
-                      <td className="muted">{fmtDate(c.lastMessageAt)}</td>
-                      <td className="muted">{fmtDate(c.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div>
+              {data.contacts.map((c) => (
+                <div key={c.id} className="crow">
+                  <Ava name={c.name} />
+                  <div className="grow">
+                    <b>{c.name || <span className="mut">No name</span>}</b>
+                    <div className="small mut">
+                      {c.phone}
+                      {c.lastMessageAt && ` · last message ${fmtDate(c.lastMessageAt)}`}
+                    </div>
+                    <div className="small mut">Added {fmtDate(c.createdAt)}</div>
+                  </div>
+                  {c.suppressed
+                    ? <Strip tone="r" dot={false}>Opted out</Strip>
+                    : <Strip tone="g" dot={false}>Can be messaged</Strip>}
+                </div>
+              ))}
             </div>
             <div className="row" style={{ marginTop: 12 }}>
-              <span className="muted grow">{data.total} contacts</span>
+              <span className="mut grow">{data.total} contacts</span>
               <button className="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
               <button className="secondary" disabled={(page + 1) * limit >= data.total} onClick={() => setPage(page + 1)}>Next</button>
             </div>

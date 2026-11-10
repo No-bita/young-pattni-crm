@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { api } from "../api.js";
 import { ErrorBox, useAction } from "../components/ui.jsx";
+import { ChatIcon } from "../components/icons.jsx";
 
-// Sign-in only. There is no signup: accounts are created by the Springboard operator.
+// Sign-in only. There is no signup: accounts are created by the PJM Youth CRM operator.
 export default function Login({ onSignedIn }) {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -18,20 +19,26 @@ export default function Login({ onSignedIn }) {
 
   return (
     <div className="login">
-      <form className="card stack" onSubmit={submit}>
-        <h1>Sign in to Springboard</h1>
-        <ErrorBox error={error} />
-        <label className="field">
-          <span>Login</span>
-          <input autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} required />
-        </label>
-        <label className="field">
-          <span>Password</span>
-          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        <button disabled={busy || !login || !password}>{busy ? "Signing in…" : "Sign in"}</button>
-        <div className="muted small">Forgot your password? Contact your Springboard operator.</div>
-      </form>
+      <div className="inner">
+        <div className="brandmark">
+          <ChatIcon />
+          <h1>PJM Youth CRM</h1>
+          <div className="mut">WhatsApp campaigns and replies<br />in one place</div>
+        </div>
+        <form className="card stack" onSubmit={submit}>
+          <ErrorBox error={error} />
+          <label className="field">
+            <span>Login</span>
+            <input autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} required />
+          </label>
+          <label className="field">
+            <span>Password</span>
+            <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </label>
+          <button className="block" disabled={busy || !login || !password}>{busy ? "Signing in…" : "Sign in"}</button>
+          <div className="mut small" style={{ textAlign: "center" }}>Forgot your password? Ask your PJM operator</div>
+        </form>
+      </div>
     </div>
   );
 }

@@ -6,30 +6,28 @@ export function TemplateFields({ template, params, setParams }) {
   if (!template) return null;
   return (
     <div className="stack">
-      <div className="card" style={{ background: "var(--surface-muted)", marginBottom: 0 }}>
-        <div className="muted small">Template text</div>
-        <div style={{ whiteSpace: "pre-wrap" }}>{template.bodyText}</div>
-      </div>
       {params.map((p, i) => (
-        <div key={i} className="row">
-          <span className="mono" style={{ width: 48 }}>{`{{${i + 1}}}`}</span>
-          <select value={p.type} onChange={(e) => {
-            const next = [...params];
-            next[i] = e.target.value === "contact_name" ? { type: "contact_name", fallback: "" } : { type: "text", value: "" };
-            setParams(next);
-          }}>
-            <option value="contact_name">Contact's name</option>
-            <option value="text">Fixed text</option>
-          </select>
-          {p.type === "contact_name" ? (
-            <input className="grow" placeholder="Use this when a contact has no name (e.g. there)" value={p.fallback} onChange={(e) => {
-              const next = [...params]; next[i] = { ...p, fallback: e.target.value }; setParams(next);
-            }} />
-          ) : (
-            <input className="grow" placeholder="Text for every contact" value={p.value} onChange={(e) => {
-              const next = [...params]; next[i] = { ...p, value: e.target.value }; setParams(next);
-            }} />
-          )}
+        <div key={i} className="card" style={{ marginBottom: 0 }}>
+          <div className="small mut" style={{ marginBottom: 6, fontFamily: "var(--font-mono)" }}>{`{{${i + 1}}} in ${template.name}`}</div>
+          <div className="row" style={{ flexWrap: "nowrap" }}>
+            <select value={p.type} onChange={(e) => {
+              const next = [...params];
+              next[i] = e.target.value === "contact_name" ? { type: "contact_name", fallback: "" } : { type: "text", value: "" };
+              setParams(next);
+            }}>
+              <option value="contact_name">Contact's name</option>
+              <option value="text">Fixed text</option>
+            </select>
+            {p.type === "contact_name" ? (
+              <input className="grow" placeholder="If no name: there" value={p.fallback} onChange={(e) => {
+                const next = [...params]; next[i] = { ...p, fallback: e.target.value }; setParams(next);
+              }} />
+            ) : (
+              <input className="grow" placeholder="Text for every contact" value={p.value} onChange={(e) => {
+                const next = [...params]; next[i] = { ...p, value: e.target.value }; setParams(next);
+              }} />
+            )}
+          </div>
         </div>
       ))}
     </div>
@@ -38,6 +36,17 @@ export function TemplateFields({ template, params, setParams }) {
 
 export function paramsComplete(params) {
   return params.every((p) => (p.type === "contact_name" ? p.fallback.trim() : p.value.trim()));
+}
+
+// Renders the template body the way a message bubble would carry it, with a
+// sample name filled into contact_name slots. Labelled Message preview.
+export function previewBody(template, params) {
+  let i = 0;
+  return (template.bodyText || "").replace(/\{\{\s*(\d+)\s*\}\}/g, (m) => {
+    const p = params[i++];
+    if (!p) return "Riya";
+    return p.type === "contact_name" ? "Riya" : (p.value.trim() || m);
+  });
 }
 
 export default function CampaignNew() {
@@ -68,28 +77,42 @@ export default function CampaignNew() {
 
   return (
     <>
-      <div className="head"><h1>New campaign</h1></div>
-      <div className="steps"><span className="on">1. Message</span><span>2. Audience</span><span>3. Review and confirm</span></div>
+      <div className="head"><h1>New campaign</h1><span className="small faint">1 of 3</span></div>
+      <div className="sub">Message → Audience → Send</div>
       <ErrorBox error={error || action.error} onRetry={error ? reload : undefined} />
       {loading && !data ? <Loading /> : data && !data.sender ? (
         <div className="card"><Empty>No active WhatsApp number. <a href="#/number">Set one up</a> before creating a campaign.</Empty></div>
       ) : data && (
-        <div className="card stack">
-          <label className="field"><span>Campaign name</span><input value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label className="field">
-            <span>Approved template on {data.sender.displayNumber}</span>
-            <div className="row">
-              <select className="grow" value={templateId} onChange={(e) => pick(e.target.value)}>
-                <option value="">Choose a template</option>
-                {usable.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.language})</option>)}
-              </select>
-              <button type="button" className="secondary" disabled={action.busy} onClick={sync}>Refresh from Meta</button>
-            </div>
+        <>
+          <label className="field" style={{ marginBottom: 18 }}>
+            <span>Name it something you'll recognise</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="November offer" />
           </label>
+
+          <h2>Pick the message</h2>
+          <div className="small mut" style={{ margin: "-4px 0 10px" }}>Message preview · approved templates on {data.sender.displayNumber}</div>
           {usable.length === 0 && <div className="alert warn">No approved templates on this number. Create one in Meta's WhatsApp Manager, wait for approval, then refresh.</div>}
-          <TemplateFields template={template} params={params} setParams={setParams} />
-          <div><button disabled={action.busy || !name.trim() || !template || !paramsComplete(params)} onClick={create}>Continue to audience</button></div>
-        </div>
+          {usable.map((t) => (
+            <div key={t.id} className={`wa pick ${t.id === templateId ? "picked" : ""}`} style={{ marginBottom: 12 }} onClick={() => pick(t.id)}>
+              <div className="bub out">
+                {t.id === templateId ? previewBody(t, params) : previewBody(t, [])}
+                <div className="bmeta">6:56 pm <span className="ticks">✓✓</span></div>
+              </div>
+              <div className="row" style={{ justifyContent: "flex-end", marginTop: 6, flexWrap: "nowrap" }}>
+                <span className="small mut">{t.name} · {t.language}</span>
+                {t.id === templateId && <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--ink)", color: "#fff", display: "grid", placeItems: "center", fontSize: 12 }}>✓</span>}
+              </div>
+            </div>
+          ))}
+          <div className="row" style={{ marginBottom: 16 }}>
+            <button type="button" className="secondary" disabled={action.busy} onClick={sync}>{action.busy ? "Refreshing…" : "Refresh from Meta"}</button>
+          </div>
+
+          {template && params.length > 0 && <TemplateFields template={template} params={params} setParams={setParams} />}
+          <div style={{ marginTop: 16 }}>
+            <button className="block" disabled={action.busy || !name.trim() || !template || !paramsComplete(params)} onClick={create}>Continue to audience</button>
+          </div>
+        </>
       )}
     </>
   );

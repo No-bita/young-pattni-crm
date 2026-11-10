@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, fmtDate, go } from "../api.js";
-import { Empty, ErrorBox, Loading, Pill, useAction, useApi } from "../components/ui.jsx";
+import { Ava, Empty, ErrorBox, Loading, Pill, Strip, useAction, useApi } from "../components/ui.jsx";
+import { previewBody } from "./CampaignNew.jsx";
+
+const TONE = { completed: "g", sending: "a", scheduled: "a", draft: "n", cancelled: "n" };
+const LABEL = { completed: "Completed", sending: "Sending", scheduled: "Scheduled", draft: "Draft", cancelled: "Cancelled" };
 
 function AudienceStep({ campaign, initialIds, onSaved }) {
   const [selected, setSelected] = useState(() => new Set(initialIds || []));
@@ -29,47 +33,43 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
   });
 
   return (
-    <div className="card stack">
-      <h2>Choose who receives "{campaign.name}"</h2>
+    <>
+      <div className="head"><h1>Who receives it</h1><span className="small faint">2 of 3</span></div>
       <ErrorBox error={action.error || list.error} />
       {note && <div className="alert ok">{note}</div>}
-      <div className="row">
+      <div className="row" style={{ marginBottom: 12, flexWrap: "nowrap" }}>
         <input className="grow" placeholder="Search name or number" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+      </div>
+      <div className="row" style={{ marginBottom: 12 }}>
         <button className="secondary" disabled={action.busy} onClick={selectAllMatching}>Select all matching</button>
-        <button className="secondary" disabled={selected.size === 0} onClick={() => setSelected(new Set())}>Clear selection</button>
+        <button className="secondary" disabled={selected.size === 0} onClick={() => setSelected(new Set())}>Clear</button>
+        <b className="grow" style={{ textAlign: "right" }}>{selected.size} selected</b>
       </div>
       {list.loading && !list.data ? <Loading /> : list.data && list.data.contacts.length === 0 ? (
-        <Empty>{q ? "No contacts match." : <>No contacts yet. <a href="#/contacts">Add or import contacts</a> first.</>}</Empty>
+        <div className="card"><Empty>{q ? "No contacts match." : <>No contacts yet. <a href="#/contacts">Add or import contacts</a> first.</>}</Empty></div>
       ) : list.data && (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th></th><th>Name</th><th>Phone</th><th>Status</th></tr></thead>
-            <tbody>
-              {list.data.contacts.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <input type="checkbox" className="check" disabled={c.suppressed} checked={!c.suppressed && selected.has(c.id)} onChange={() => toggle(c.id)} aria-label={`Select ${c.name || c.phone}`} />
-                  </td>
-                  <td>{c.name || <span className="muted">No name</span>}</td>
-                  <td className="mono">{c.phone}</td>
-                  <td>{c.suppressed ? <span className="pill bad">Opted out: cannot be selected</span> : <span className="pill ok">Can be messaged</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="card" style={{ padding: "6px 16px" }}>
+          {list.data.contacts.map((c) => (
+            <label key={c.id} className="crow" style={{ cursor: c.suppressed ? "default" : "pointer" }}>
+              <input type="checkbox" className="check" disabled={c.suppressed} checked={!c.suppressed && selected.has(c.id)} onChange={() => toggle(c.id)} aria-label={`Select ${c.name || c.phone}`} />
+              <Ava name={c.name} />
+              <div className="grow">
+                <b>{c.name || <span className="mut">No name</span>}</b>
+                <div className="small mut">{c.phone}</div>
+              </div>
+              {c.suppressed && <span className="strip r" style={{ fontSize: 11.5 }}>Opted out</span>}
+            </label>
+          ))}
         </div>
       )}
       {list.data && (
-        <div className="row">
+        <div className="row" style={{ marginBottom: 12 }}>
           <button className="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
           <button className="secondary" disabled={(page + 1) * limit >= list.data.total} onClick={() => setPage(page + 1)}>Next</button>
         </div>
       )}
-      <div className="row">
-        <b className="grow">{selected.size} selected</b>
-        <button disabled={action.busy || selected.size === 0} onClick={save}>Save audience and review</button>
-      </div>
-    </div>
+      <button className="block" disabled={action.busy || selected.size === 0} onClick={save}>Save audience and review</button>
+    </>
   );
 }
 
@@ -99,41 +99,42 @@ function ReviewStep({ campaign, template, onLaunched }) {
 
   if (preview.loading && !preview.data) return <Loading />;
   return (
-    <div className="card stack">
-      <h2>Review and confirm</h2>
+    <>
+      <div className="head"><h1>Review and send</h1><span className="small faint">3 of 3</span></div>
       <ErrorBox error={preview.error || action.error} />
-      <div className="stats">
-        <div className="stat"><span className="muted small">Will receive it</span><b>{a?.sendable ?? 0}</b></div>
-        <div className="stat"><span className="muted small">Selected</span><b>{a?.selected ?? 0}</b></div>
-        <div className="stat"><span className="muted small">Skipped (opted out)</span><b>{a?.suppressed ?? 0}</b></div>
+      <div className="stats" style={{ marginBottom: 12 }}>
+        <div className="stat"><b>{a?.sendable ?? 0}</b><span className="mut">will receive it</span></div>
+        <div className="stat"><b>{a?.selected ?? 0}</b><span className="mut">selected</span></div>
+        <div className="stat"><b>{a?.suppressed ?? 0}</b><span className="mut">opted out, skipped</span></div>
       </div>
-      <div>
-        <div className="muted small">Template</div>
-        <div className="mono">{campaign.templateName} ({campaign.templateLanguage})</div>
-        {template && <div style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>{template.bodyText}</div>}
-      </div>
+      {template && (
+        <div className="card">
+          <div className="small mut" style={{ marginBottom: 8 }}>Message preview · {campaign.templateName} ({campaign.templateLanguage})</div>
+          <div className="wa"><div className="bub out">{previewBody(template, campaign.params || [])}<div className="bmeta">6:56 pm <span className="ticks">✓✓</span></div></div></div>
+        </div>
+      )}
       {blocker ? (
         <div className="alert bad">{blocker.message}</div>
       ) : (
-        <>
+        <div className="card stack">
           <div className="row">
-            <label className="row"><input type="radio" checked={mode === "now"} onChange={() => setMode("now")} /> Send now</label>
-            <label className="row"><input type="radio" checked={mode === "later"} onChange={() => setMode("later")} /> Schedule</label>
+            <label className="row" style={{ gap: 6 }}><input type="radio" className="check" checked={mode === "now"} onChange={() => setMode("now")} /> Send now</label>
+            <label className="row" style={{ gap: 6 }}><input type="radio" className="check" checked={mode === "later"} onChange={() => setMode("later")} /> Schedule</label>
             {mode === "later" && <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />}
           </div>
-          <label className="row">
+          <label className="row" style={{ gap: 8, flexWrap: "nowrap", alignItems: "flex-start" }}>
             <input type="checkbox" className="check" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-            I confirm this campaign goes to exactly {a?.sendable} contacts.
+            <span className="grow">I confirm this campaign goes to exactly {a?.sendable} contacts</span>
           </label>
           <div className="row">
             <button className="secondary" onClick={() => go(`/campaigns/${campaign.id}/audience`)}>Change audience</button>
-            <button disabled={!confirmed || action.busy || (mode === "later" && !when)} onClick={launch}>
+            <button className="grow" style={{ justifyContent: "center" }} disabled={!confirmed || action.busy || (mode === "later" && !when)} onClick={launch}>
               {mode === "later" ? "Schedule campaign" : `Send to ${a?.sendable} contacts`}
             </button>
           </div>
-        </>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -155,7 +156,9 @@ function Progress({ campaign, reload }) {
     reload();
   });
 
-  const stats = [["Queued", (r.queued || 0) + (r.sending || 0)], ["Sent", r.sent || 0], ["Delivered", r.delivered || 0], ["Read", r.read || 0], ["Failed", r.failed || 0], ["Skipped (opted out)", r.skipped_suppressed || 0], ["Cancelled", r.cancelled || 0]];
+  const stats = [["sent", (r.sent || 0) + (r.delivered || 0) + (r.read || 0)], ["delivered", (r.delivered || 0) + (r.read || 0)], ["read", r.read || 0], ["failed", r.failed || 0], ["opted out, skipped", r.skipped_suppressed || 0]];
+  if (r.queued || r.sending) stats.unshift(["queued", (r.queued || 0) + (r.sending || 0)]);
+  if (r.cancelled) stats.push(["cancelled", r.cancelled]);
   return (
     <>
       <ErrorBox error={action.error} />
@@ -163,9 +166,8 @@ function Progress({ campaign, reload }) {
       <div className="card stack">
         <div className="row">
           <div className="grow">
-            <div>Template <span className="mono">{campaign.templateName}</span> from {campaign.senderNumber || "the active number"}</div>
-            <div className="muted small">
-              {campaign.status === "scheduled" ? `Scheduled for ${fmtDate(campaign.scheduledAt)}` : `Started ${fmtDate(campaign.launchedAt)}`}
+            <div className="small mut">
+              {campaign.status === "scheduled" ? `Goes out ${fmtDate(campaign.scheduledAt)}` : `Started ${fmtDate(campaign.launchedAt)}`}
               {campaign.completedAt && ` · Finished ${fmtDate(campaign.completedAt)}`}
               {campaign.confirmedCount != null && ` · Confirmed for ${campaign.confirmedCount} contacts`}
             </div>
@@ -174,7 +176,9 @@ function Progress({ campaign, reload }) {
             <button className="danger" disabled={action.busy} onClick={cancel}>{campaign.status === "scheduled" ? "Cancel schedule" : "Stop sending"}</button>
           )}
         </div>
-        {campaign.status !== "scheduled" && <div className="stats">{stats.map(([k, v]) => <div className="stat" key={k}><span className="muted small">{k}</span><b>{v}</b></div>)}</div>}
+        {campaign.status !== "scheduled" && (
+          <div className="stats">{stats.map(([k, v]) => <div className="stat" key={k}><b className={k === "failed" && v ? "bad" : ""}>{v}</b><span className="mut">{k}</span></div>)}</div>
+        )}
       </div>
       {campaign.status !== "scheduled" && (
         <div className="card">
@@ -187,14 +191,25 @@ function Progress({ campaign, reload }) {
           </div>
           <ErrorBox error={rec.error} />
           {rec.data && rec.data.recipients.length === 0 ? <Empty>No recipients in this view.</Empty> : rec.data && (
-            <div className="table-wrap">
+            <>
+              <div className="mobile-records">
+                {rec.data.recipients.map((x) => (
+                  <div key={x.id} className="record">
+                    <div className="record-head"><b>{x.name || "No name"}</b><Pill status={x.status} /></div>
+                    <div className="small mut mono">{x.phone}</div>
+                    {x.error && <div className="small record-error">{x.error}</div>}
+                  </div>
+                ))}
+              </div>
+            <div className="table-wrap desktop-records">
               <table>
                 <thead><tr><th>Contact</th><th>Phone</th><th>Status</th><th>Detail</th></tr></thead>
                 <tbody>{rec.data.recipients.map((x) => (
-                  <tr key={x.id}><td>{x.name || <span className="muted">No name</span>}</td><td className="mono">{x.phone}</td><td><Pill status={x.status} /></td><td className="muted small">{x.error}</td></tr>
+                  <tr key={x.id}><td>{x.name || <span className="mut">No name</span>}</td><td className="mono">{x.phone}</td><td><Pill status={x.status} /></td><td className="mut small">{x.error}</td></tr>
                 ))}</tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       )}
@@ -213,17 +228,19 @@ export default function CampaignDetail({ id, step }) {
 
   if (loading && !data) return <Loading />;
   if (error) return <ErrorBox error={error} onRetry={reload} />;
+  const showSteps = current || campaign.status !== "draft";
   return (
     <>
       <div className="head">
-        <div>
-          <a href="#/campaigns" className="muted small">← Campaigns</a>
-          <h1>{campaign.name} <Pill status={campaign.status} /></h1>
+        <div className="grow">
+          <a href="#/campaigns" className="mut small backlink">← Campaigns</a>
+          <div className="row" style={{ flexWrap: "nowrap" }}>
+            <h1>{campaign.name}</h1>
+            <Strip tone={TONE[campaign.status] || "n"} dot={campaign.status !== "draft" && campaign.status !== "cancelled"}>{LABEL[campaign.status] || campaign.status}</Strip>
+          </div>
         </div>
       </div>
-      {current && (
-        <div className="steps"><span>1. Message</span><span className={current === "audience" ? "on" : ""}>2. Audience</span><span className={current === "review" ? "on" : ""}>3. Review and confirm</span></div>
-      )}
+      {showSteps && !current && <div className="sub">{campaign.templateName} from {campaign.senderNumber || "the active number"}</div>}
       {current === "audience" && <AudienceStep campaign={campaign} initialIds={data.audienceIds} onSaved={() => { go(`/campaigns/${id}/review`); reload(); }} />}
       {current === "review" && <ReviewStep campaign={campaign} template={data.template} onLaunched={() => { go(`/campaigns/${id}`); reload(); }} />}
       {!current && <Progress campaign={campaign} reload={reload} />}

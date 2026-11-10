@@ -16,7 +16,7 @@ export async function api(path, { method = "GET", body } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError("Could not reach Springboard. Check your connection and try again.", 0, null);
+    throw new ApiError("Could not reach PJM Youth CRM. Check your connection and try again.", 0, null);
   }
   let data = null;
   try {
