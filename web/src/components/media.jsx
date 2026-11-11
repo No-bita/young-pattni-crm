@@ -120,4 +120,4 @@ export function ImageUpload({ asset, onUploaded, senderNumber, templateId, activ
       </div>
     </div>
   );
-    }
+}
