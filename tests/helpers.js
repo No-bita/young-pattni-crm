@@ -64,6 +64,28 @@ export class D1Shim {
   }
 }
 
+// Resolves only when the caller aborts (simulates a server that never answers).
+function hangUntilAborted(signal) {
+  return new Promise((_, reject) => {
+    if (!signal) return; // never settles: a caller without a deadline would hang
+    if (signal.aborted) { reject(signal.reason); return; }
+    // Node's AbortSignal.timeout timer does not keep the process alive; this one does, until abort.
+    const keepAlive = setInterval(() => {}, 50);
+    signal.addEventListener("abort", () => { clearInterval(keepAlive); reject(signal.reason); }, { once: true });
+  });
+}
+
+// A response body that keeps producing 64 KB chunks until the reader stops.
+function endlessStream(g) {
+  return new ReadableStream({
+    pull(controller) {
+      g.hugeBytesServed += 65536;
+      controller.enqueue(new Uint8Array(65536));
+      if (g.hugeBytesServed > 200 * 1024 * 1024) controller.close();
+    },
+  });
+}
+
 // Fake Graph API. Configure per test via graph.* fields.
 export function makeGraph() {
   const g = {
@@ -72,6 +94,12 @@ export function makeGraph() {
     phoneNumbers: {},   // phone_number_id -> { display_phone_number, verified_name, waba }
     templates: {},      // waba_id -> [template]
     failSendTo: new Set(),
+    media: {},          // media id -> { phoneNumberId, type, bytes, token }
+    uploads: [],
+    downloads: [],      // media download requests (host, redirect mode)
+    downloadMode: null, // null | "redirect" | "hang" | "huge"
+    hugeBytesServed: 0,
+    templateQueries: [],
     tokenOk: (token) => token.startsWith("tok_"),
   };
   g.fetch = async (url, init = {}) => {
@@ -80,18 +108,50 @@ export function makeGraph() {
     const token = String(init.headers?.Authorization || "").replace("Bearer ", "");
     g.calls.push({ method: init.method || "GET", path: parts.join("/"), token });
     const json = (status, data) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+    if (u.hostname === "lookaside.fbsbx.com") {
+      g.downloads.push({ host: u.hostname, redirect: init.redirect ?? "follow" });
+      const m = g.media[u.searchParams.get("mid")];
+      if (!m || token !== m.token) return new Response("forbidden", { status: 403 });
+      // Optional misbehaviour modes, used only by tests that set them (default: normal download).
+      if (g.downloadMode === "redirect") return new Response(null, { status: 302, headers: { Location: "https://evil.example/steal" } });
+      if (g.downloadMode === "hang") return hangUntilAborted(init.signal);
+      if (g.downloadMode === "huge") return new Response(endlessStream(g), { status: 200, headers: { "Content-Type": m.type } });
+      return new Response(m.bytes, { status: 200, headers: { "Content-Type": m.type } });
+    }
     if (u.hostname !== "graph.facebook.com") throw new Error(`unexpected network call to ${u.hostname}`);
     if (!g.tokenOk(token)) return json(401, { error: { message: "Invalid OAuth access token.", code: 190 } });
 
     const [id, edge] = parts;
-    if (!edge && (init.method || "GET") === "GET") {
+    if (!edge && !g.media[id] && (init.method || "GET") === "GET") {
       const p = g.phoneNumbers[id];
       return p ? json(200, { id, display_phone_number: p.display_phone_number, verified_name: p.verified_name }) : json(404, { error: { message: "Unsupported get request.", code: 100 } });
     }
     if (edge === "phone_numbers") {
       return json(200, { data: Object.entries(g.phoneNumbers).filter(([, p]) => p.waba === id).map(([pid, p]) => ({ id: pid, display_phone_number: p.display_phone_number })) });
     }
-    if (edge === "message_templates") return json(200, { data: g.templates[id] || [] });
+    if (edge === "message_templates") {
+      const name = u.searchParams.get("name");
+      const language = u.searchParams.get("language");
+      g.templateQueries.push({ waba: id, name, language, fields: u.searchParams.get("fields"), after: u.searchParams.get("after") });
+      if (g.failTemplates) return json(500, { error: { message: "Fake Meta template error", code: 1 } });
+      if (g.hangTemplates) return hangUntilAborted(init.signal);
+      // Meta's name filter is a match, not necessarily exact; the fake returns near-matches too.
+      const data = (g.templates[id] || []).filter((t) => (!name || t.name.includes(name)) && (!language || t.language === language));
+      return json(200, { data });
+    }
+    if (edge === "media" && init.method === "POST") {
+      if (g.failUpload) return json(400, { error: { message: "Upload rejected by fake Meta", code: 131053 } });
+      const form = init.body;
+      const file = form.get("file");
+      const id = `mid_${Object.keys(g.media).length + 1}`;
+      g.media[id] = { phoneNumberId: id && parts[0], type: form.get("type"), messagingProduct: form.get("messaging_product"), bytes: new Uint8Array(await file.arrayBuffer()), token };
+      g.uploads.push({ phoneNumberId: parts[0], id, type: form.get("type") });
+      return json(200, { id });
+    }
+    if (!edge && g.media[id] && (init.method || "GET") === "GET") {
+      if (u.searchParams.get("phone_number_id") !== g.media[id].phoneNumberId) return json(400, { error: { message: "media not on this number" } });
+      return json(200, { url: `https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=${id}`, mime_type: g.media[id].type, id });
+    }
     if (edge === "messages" && init.method === "POST") {
       const body = JSON.parse(init.body);
       if (!g.phoneNumbers[id]) return json(400, { error: { message: "Invalid phone number id", code: 100 } });
@@ -156,6 +216,20 @@ export class Client {
       data = text;
     }
     return { status: res.status, data, headers: res.headers };
+  }
+  async upload(path, bytes, { type = "image/png", name = "photo.png", field = "file" } = {}) {
+    const form = new FormData();
+    form.append(field, new Blob([bytes], { type }), name);
+    const headers = this.cookie ? { Cookie: this.cookie } : {};
+    const res = await app.fetch(new Request(`https://sb.test${path}`, { method: "POST", headers, body: form }), this.env, {});
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = text; }
+    return { status: res.status, data, headers: res.headers };
+  }
+  async raw(path) {
+    const headers = this.cookie ? { Cookie: this.cookie } : {};
+    return app.fetch(new Request(`https://sb.test${path}`, { headers }), this.env, {});
   }
   get(p) { return this.req("GET", p); }
   post(p, b = {}) { return this.req("POST", p, b); }
