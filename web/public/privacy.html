@@ -1,0 +1,38 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Privacy Policy</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:720px;margin:0 auto;padding:24px 18px;color:#1a1a1a}h1{font-size:1.6rem}h2{font-size:1.15rem;margin-top:1.8rem}.draft{background:#fff4d6;border:1px solid #e0b64a;padding:10px 12px;border-radius:6px;font-size:.9rem}ul{padding-left:1.2rem}</style></head><body>
+<h1>Privacy Policy</h1>
+<p>Last updated: 11 November 2026</p>
+<p>This policy explains how the PJM messaging portal (the "Service") handles information. The Service is run by PJM ("we"), which is not a registered company. Contact: <a href="mailto:youngpattni.pjm@gmail.com">youngpattni.pjm@gmail.com</a>.</p>
+<h2>What the Service is</h2>
+<p>The Service lets approved customer accounts send WhatsApp messages to their own contacts and read replies. There is no public sign-up. We create each customer login ourselves.</p>
+<h2>Who this covers</h2>
+<ul><li><b>Customers</b> who have a login.</li><li><b>Contacts</b>: people whose phone numbers a customer has added or who message a customer's WhatsApp number.</li></ul>
+<h2>What we store</h2>
+<ul>
+<li><b>Account:</b> account name, login email, and a salted hash of the password (never the password itself). Login sessions last 7 days and use a secure, HttpOnly cookie.</li>
+<li><b>Contacts:</b> phone number, name (if the customer entered one), opt-out status and time, and the times of the last message sent and received.</li>
+<li><b>Messages and campaigns:</b> message text sent and received, template name, campaign name and settings, the list of recipients, delivery status (sent, delivered, read, failed) and any error returned by WhatsApp.</li>
+<li><b>WhatsApp numbers:</b> the phone number ID, WhatsApp Business Account ID, display number and verified name of the number a customer sends from. The access token is kept as a protected server secret, not in the database.</li>
+<li><b>Images:</b> when a customer attaches an image to a campaign, the file is sent to WhatsApp (Meta). We do not keep the image file. We keep details about it: type, size, a checksum, dimensions, original file name, Meta's reference ID and an expiry date.</li>
+<li>Incoming media (images and similar) is recorded only as a placeholder such as "[image]". We do not download it.</li>
+</ul>
+<h2>How we use it</h2>
+<p>Only to run the Service: log customers in, send and receive WhatsApp messages, show delivery status and replies, and respect opt-outs. We do not sell this information and we do not use it for advertising.</p>
+<h2>Who it is shared with</h2>
+<ul>
+<li><b>Meta (WhatsApp Business Platform):</b> receives the messages, phone numbers and images needed to deliver messages, and sends us delivery, reply and opt-out events. Meta handles that data under its own terms and privacy policy.</li>
+<li><b>Cloudflare:</b> hosts the Service and stores its database, message queue and scheduled jobs.</li>
+</ul>
+<p>We do not otherwise share contact data unless the law requires it.</p>
+<h2>Opt-out</h2>
+<p>A contact can opt out of marketing messages using the opt-out option in WhatsApp. When we receive that event from Meta, we stop sending campaigns to that number. Opt-out depends on WhatsApp delivering the event to us. If you want to stop receiving messages, you can also write to the contact email above.</p>
+<h2>How long we keep it</h2>
+<p>The Service does not currently delete contact, message or campaign data automatically, and it has no delete function. We have not set a fixed retention period. The Service cannot delete data by itself. We review requests and make manual changes only where we are able to and where applicable obligations require or allow it. We do not promise that we will always remove data. WhatsApp image reference IDs expire on Meta's side (Meta documents 30 days); that does not mean other data is deleted.</p>
+<h2>Your requests</h2>
+<p>To ask about, correct or remove information about you, write to the contact email above. We will review it and reply, but we cannot promise a particular outcome or timeline. Nothing in this policy or the terms limits rights or obligations under applicable law. If you are a contact, your request may need to go to the customer who messaged you as well.</p>
+<h2>Customer responsibility</h2>
+<p>Customers decide whom to message. They are responsible for having a lawful basis to message their contacts and for following WhatsApp's rules. The Service does not record or verify contact consent.</p>
+<h2>Security</h2>
+<p>We use access controls, hashed passwords and encrypted connections (HTTPS). No system is perfectly secure and we cannot guarantee absolute security.</p>
+<h2>Changes</h2>
+<p>We may update this policy and will change the date above when we do.</p>
+</body></html>
