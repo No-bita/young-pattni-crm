@@ -145,11 +145,11 @@ export async function inspectMetaTemplate(env, sender, metaTemplateId) {
   let timer;
   let reader;
   const perform = async () => {
-    const res = await fetch(url.toString(), { method: "GET", redirect: "manual", headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+    const res = await fetch(url.toString(), { method: "GET", redirect: "manual", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, signal: controller.signal });
     if (res.redirected || (res.status >= 300 && res.status < 400)) throw new InspectionError("REDIRECT_REFUSED");
     const size = res.headers.get("Content-Length");
     if (size && (!/^\d+$/.test(size) || Number(size) > INSPECTION_MAX_BYTES)) throw new InspectionError("RESPONSE_TOO_LARGE");
-    if (!/^application\/json(?:\s*;|$)/i.test(res.headers.get("Content-Type") || "")) throw invalidResponse("CONTENT_TYPE");
+    if (!/^(?:application\/json|text\/javascript)(?:\s*;|$)/i.test(res.headers.get("Content-Type") || "")) throw invalidResponse("CONTENT_TYPE");
     if (!res.body) throw invalidResponse("BODY_MISSING");
     reader = res.body.getReader();
     let total = 0;
@@ -189,4 +189,4 @@ export async function inspectMetaTemplate(env, sender, metaTemplateId) {
     controller.abort();
     if (reader) { try { void reader.cancel().catch(() => {}); } catch { /* no upstream details logged */ } }
   }
-}
+                }
