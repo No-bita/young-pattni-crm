@@ -299,6 +299,7 @@ export default function CampaignDetail({ id, step }) {
             <Strip tone={TONE[campaign.status] || "n"} dot={campaign.status !== "draft" && campaign.status !== "cancelled"}>{LABEL[campaign.status] || campaign.status}</Strip>
           </div>
         </div>
+        {!current && <button type="button" className="secondary" onClick={reload} disabled={loading} aria-label="Refresh campaign">{loading ? "Refreshing…" : "Refresh"}</button>}
       </div>
       {showSteps && !current && <div className="sub">{campaign.templateName} from {campaign.senderNumber || "the active number"}</div>}
       {current === "audience" && <AudienceStep campaign={campaign} initialIds={data.audienceIds} onSaved={() => { go(`/campaigns/${id}/review`); reload(); }} />}
