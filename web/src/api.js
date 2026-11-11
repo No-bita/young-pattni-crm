@@ -53,3 +53,29 @@ export function statusPill(status) {
 export function go(path) {
   window.location.hash = path;
 }
+
+// Multipart upload of one file to an authenticated endpoint. Never sends tokens; the session cookie is enough.
+export async function apiUpload(path, file) {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  let res;
+  try {
+    res = await fetch(`/api${path}`, { method: "POST", credentials: "same-origin", body: form });
+  } catch {
+    throw new ApiError("Could not reach the CRM. Check your connection and try again.", 0, null);
+  }
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (res.status === 401) window.dispatchEvent(new Event("sb:signed-out"));
+  if (!res.ok) throw new ApiError(data?.error || `Upload failed (${res.status}).`, res.status, data);
+  return data;
+}
+
+export function fmtBytes(n) {
+  if (n == null) return "";
+  return n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+         }
