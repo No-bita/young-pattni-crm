@@ -44,6 +44,7 @@ inbox.get("/:contactId", async (c) => {
     messages: msgs.map((m) => ({
       id: m.id, direction: m.direction, kind: m.kind, body: m.body, templateName: m.template_name,
       status: m.status, error: m.error, createdAt: m.created_at, senderNumber: m.display_number,
+      media: m.media_asset_id ? { id: m.media_asset_id, kind: "image", previewUrl: `/api/media/${m.media_asset_id}/preview` } : null,
       replied: m.direction === "outbound" && m.status !== "failed" && Boolean(lastInbound && lastInbound > m.created_at),
     })),
   });
