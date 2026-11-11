@@ -30,10 +30,10 @@ export default function TemplateInspection() {
         method: "POST", credentials: "same-origin", headers: { "X-Template-Inspection": "1" },
       });
       const body = await response.json();
-      if (!response.ok) throw new ApiError(body?.error || "The inspection hit a bump", response.status, body);
+      if (!response.ok) throw new ApiError(body?.error || "Inspection failed.", response.status, body);
       setResult(body);
     } catch (e) {
-      setError(e instanceof ApiError ? e : new ApiError("Couldn't finish this peek at Meta. No messages were sent", 0, null));
+      setError(e instanceof ApiError ? e : new ApiError("Couldn't finish the inspection. No messages were sent.", 0, null));
     } finally {
       running.current = false;
       setBusy(false);
@@ -47,17 +47,17 @@ export default function TemplateInspection() {
   return (
     <section className="card template-inspection" aria-labelledby="inspection-heading">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-        <h2 id="inspection-heading" style={{ margin: 0 }}>A peek at Meta</h2>
+        <h2 id="inspection-heading" style={{ margin: 0 }}>Template diagnostic</h2>
         <span className="strip n">Diagnostic only</span>
       </div>
       <div className="small mut" style={{ marginBottom: 12 }}>Check what Meta returns for this template, without sending a message</div>
       <div className="inspection-template"><b>{data.template.name}</b><span className="small mut">{data.template.language}</span></div>
       <button type="button" className="secondary" disabled={busy || used || Date.now() >= Date.parse(data.expiresAt)} onClick={inspect}>
-        {busy ? "Taking a peek…" : used ? "Inspection requested" : "Inspect template"}
+        {busy ? "Inspecting…" : used ? "Inspection requested" : "Inspect template"}
       </button>
       <div className="small mut" style={{ marginTop: 8 }}>Available until {fmtDate(data.expiresAt)} · Private values stay hidden</div>
       <div aria-live="polite" aria-busy={busy}>
-        {busy && <p className="small mut">One template, one read. Nothing is being sent</p>}
+        {busy && <p className="small mut">Reads one template. Nothing is sent.</p>}
         <div style={{ marginTop: error || result ? 12 : 0 }}><ErrorBox error={error} /></div>
         {reason && <div className="small" role="status" style={{ marginTop: 8 }}>
           Inspection reason: <code>{reason}</code>. No response values are shown. Don't retry yet
