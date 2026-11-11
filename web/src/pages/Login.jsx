@@ -23,7 +23,6 @@ export default function Login({ onSignedIn }) {
         <div className="brandmark">
           <ChatIcon />
           <h1>PJM Youth CRM</h1>
-          <div className="mut">WhatsApp campaigns and replies<br />in one place</div>
         </div>
         <form className="card stack" onSubmit={submit}>
           <ErrorBox error={error} />
