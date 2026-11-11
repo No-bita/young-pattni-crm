@@ -43,3 +43,25 @@ This file goes with every handover. An item leaves it only after it has been che
 - Media messages that come in are stored as placeholders like `[image]`, and the media isn't downloaded.
 - Templates with media headers can't be used in campaigns.
 - Nothing can be deleted in the app.
+
+## E. Image-header templates (added 10 Nov 2026)
+
+| # | Unknown | Status |
+|---|---|---|
+| I1 | Your actual template's definition. Its header type was confirmed as image, but its JSON wasn't inspected. If it has a component this app doesn't support (for example a URL button with a variable), it shows under "cannot be used here" with the reason. | OPEN: check after "Refresh from Meta" |
+| I2 | Whether a media id uploaded through one number works for another number in the same WABA. The docs don't say, so the code treats it as tied to the uploading number. | OPEN (safe default) |
+| I3 | The send-time JSON for an image header by `id`. The docs show the `link` form and say `id` is allowed. The code sends `{"type":"header","parameters":[{"type":"image","image":{"id":"…"}}]}` | VERIFY-LIVE: first real image send |
+| I4 | Meta's real upload response and error shapes, and whether Meta re-validates image dimensions. Only a local fake was used. | VERIFY-LIVE |
+| I5 | The 30-day lifetime is Meta's documented figure. The app does not ask Meta about an id's remaining life. | ACCEPTED (2-day margin) |
+| I6 | Meta's download URL hosts are only allow-listed for the preview stream (fbsbx.com, facebook.com, fbcdn.net, whatsapp.net) | VERIFY-LIVE: first preview |
+
+## F. After the review corrections (11 Nov 2026)
+
+| # | Item | Status |
+|---|---|---|
+| F1 | Image validation reads the file HEADER only. Truncated or corrupt files with a valid header pass, and there's no dimension cap. Your decision on a fuller check is held. | OPEN (decision) |
+| F2 | Whether your approval image (`header_handle`) can be reused at send time. Nothing assumes either way; the current journey still asks for a fresh upload. Waits on the read-only diagnostic. | OPEN (diagnostic) |
+| F3 | The freshness check uses Meta's `name`/`language` filters on v23.0. This hasn't been checked live, including Meta's exact or partial matching and the response shape. | VERIFY-LIVE |
+| F4 | Real Meta behaviour for redirects, download sizes and timeouts on media downloads. Only fake responses were used. | VERIFY-LIVE |
+| F5 | Whether the blocked text-template features would actually have failed on `main`. This is inferred from Meta's docs and wasn't tested live. | VERIFY-LIVE |
+| F6 | No live template response, media upload or send has been demonstrated in any delivery so far. | OPEN |
