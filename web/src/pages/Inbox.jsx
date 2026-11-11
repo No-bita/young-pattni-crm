@@ -94,10 +94,13 @@ function Thread({ contactId, onSent }) {
       </div>
       <ErrorBox error={action.error} />
       {blocked ? <div className="alert warn" style={{ marginTop: 12, marginBottom: 0 }}>{blocked}</div> : (
-        <form className="replybar" onSubmit={send}>
-          <textarea className="grow" rows={1} value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a reply" />
-          <button className="sendbtn" aria-label="Send" disabled={action.busy || !text.trim()}>{action.busy ? "…" : "➤"}</button>
-        </form>
+        <>
+          <form className="replybar" onSubmit={send}>
+            <textarea className="grow" rows={1} value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a reply" />
+            <button className="sendbtn" aria-label="Send" disabled={action.busy || !text.trim()}>{action.busy ? "…" : "➤"}</button>
+          </form>
+          <div className="small mut" style={{ marginTop: 6 }}>Each reply costs ₹0.50.</div>
+        </>
       )}
     </>
   );
