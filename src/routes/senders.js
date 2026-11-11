@@ -64,13 +64,14 @@ senders.get("/:id/messages", async (c) => {
   });
 });
 
-// Approved templates without variables on this number (for the optional test message).
+// Approved text-only templates without variables in this number's Messaging account (for the optional
+// test message). Media-header templates are deliberately excluded: the test sends no media.
 senders.get("/:id/test-templates", async (c) => {
   const sender = await getOwned(c);
   if (!sender) return c.json({ error: "Number not found." }, 404);
   const rows = await all(
     c.env.DB,
-    "SELECT id, name, language FROM templates WHERE account_id = ? AND sender_id = ? AND status = 'APPROVED' AND has_header_media = 0 AND body_param_count = 0 ORDER BY name",
+    "SELECT id, name, language FROM templates WHERE account_id = ? AND sender_id = ? AND status = 'APPROVED' AND has_header_media = 0 AND body_param_count = 0 AND unsupported_reason IS NULL ORDER BY name",
     accountId(c), sender.id,
   );
   return c.json({ templates: rows });
@@ -141,8 +142,8 @@ senders.post("/:id/test", async (c) => {
   if (testPhone) {
     const tplId = str(body.templateId, 60);
     const tpl = await one(c.env.DB, "SELECT * FROM templates WHERE id = ? AND sender_id = ? AND account_id = ?", tplId, sender.id, sender.account_id);
-    if (!tpl || !isUsable(tpl) || tpl.body_param_count > 0) {
-      return fail("For the test message, pick an approved template on this number that has no variables.");
+    if (!tpl || !isUsable(tpl) || tpl.body_param_count > 0 || tpl.has_header_media) {
+      return fail("For the test message, pick an approved text-only template from this number's Messaging account that has no variables.");
     }
     const res = await sendToContactWithSender(c.env, { accountId: sender.account_id, sender, phone: testPhone, template: tpl });
     if (!res.ok) return fail(`Test message failed: ${res.error}`);
@@ -167,7 +168,7 @@ async function activationBlockers(env, sender) {
     if (!isUsable(tpl)) missing.push({ name: t.name, language: t.language, status: tpl?.status || "NOT_FOUND" });
   }
   if (missing.length) {
-    blockers.push({ code: "TEMPLATES_MISSING", message: "Draft campaigns use templates that are not approved on this number.", templates: missing });
+    blockers.push({ code: "TEMPLATES_MISSING", message: "Draft campaigns use templates that are not approved in this number's Messaging account.", templates: missing });
   }
   return blockers;
 }

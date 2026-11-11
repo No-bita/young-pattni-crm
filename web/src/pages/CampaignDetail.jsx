@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, fmtDate, go } from "../api.js";
 import { Ava, Empty, ErrorBox, Loading, Pill, Strip, useAction, useApi } from "../components/ui.jsx";
 import { previewBody } from "./CampaignNew.jsx";
+import { ImageUpload, MessageBubble } from "../components/media.jsx";
 
 const TONE = { completed: "g", sending: "a", scheduled: "a", draft: "n", cancelled: "n" };
 const LABEL = { completed: "Completed", sending: "Sending", scheduled: "Scheduled", draft: "Draft", cancelled: "Cancelled" };
@@ -73,7 +74,14 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
   );
 }
 
-function ReviewStep({ campaign, template, onLaunched }) {
+function toLocalInput(iso) {
+  if (!iso) return undefined;
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function ReviewStep({ campaign, template, onLaunched, onChanged }) {
   const preview = useApi(`/campaigns/${campaign.id}/preview`);
   const [mode, setMode] = useState("now");
   const [when, setWhen] = useState("");
@@ -81,6 +89,16 @@ function ReviewStep({ campaign, template, onLaunched }) {
   const action = useAction();
   const a = preview.data?.audience;
   const blocker = preview.data?.blocker;
+  const latestStart = preview.data?.latestStart;
+  const [replaced, setReplaced] = useState(null);
+  const mediaBlocked = blocker && String(blocker.code || "").startsWith("MEDIA_");
+
+  const replaceImage = (asset, url) => action.run(async () => {
+    await api(`/campaigns/${campaign.id}`, { method: "PATCH", body: { mediaAssetId: asset.id } });
+    setReplaced(url);
+    preview.reload();
+    onChanged?.();
+  });
 
   const launch = () => action.run(async () => {
     const body = { confirmCount: a.sendable };
@@ -110,18 +128,41 @@ function ReviewStep({ campaign, template, onLaunched }) {
       {template && (
         <div className="card">
           <div className="small mut" style={{ marginBottom: 8 }}>Message preview · {campaign.templateName} ({campaign.templateLanguage})</div>
-          <div className="wa"><div className="bub out">{previewBody(template, campaign.params || [])}<div className="bmeta">6:56 pm <span className="ticks">✓✓</span></div></div></div>
+          <div className="wa">
+            <MessageBubble
+              body={previewBody({ ...template, bodyText: campaign.content?.body?.text ?? campaign.frozen?.bodyText ?? template.bodyText }, campaign.params || [])}
+              needsImage={(campaign.content?.header?.format ?? template.headerFormat) === "IMAGE"}
+              imageUrl={replaced || campaign.media?.previewUrl}
+              headerText={campaign.content?.header?.text ?? template.headerText}
+              footer={campaign.content?.footer?.text ?? template.footerText}
+              buttons={campaign.content?.buttons ?? template.buttons}
+              showDestinations
+            />
+          </div>
+          {campaign.media && (
+            <div className="small mut" style={{ marginTop: 8 }}>
+              Image uploaded through {campaign.media.senderNumber || "a WhatsApp number"} · must start by {fmtDate(latestStart || campaign.media.latestStart)}
+            </div>
+          )}
         </div>
       )}
       {blocker ? (
-        <div className="alert bad">{blocker.message}</div>
+        <>
+          <div className="alert bad">{blocker.message}</div>
+          {mediaBlocked && template?.needsImage && (
+            <ImageUpload key={`replace-${campaign.id}`} templateId={campaign.id} asset={null} onUploaded={replaceImage} />
+          )}
+        </>
       ) : (
         <div className="card stack">
           <div className="row">
             <label className="row" style={{ gap: 6 }}><input type="radio" className="check" checked={mode === "now"} onChange={() => setMode("now")} /> Send now</label>
             <label className="row" style={{ gap: 6 }}><input type="radio" className="check" checked={mode === "later"} onChange={() => setMode("later")} /> Schedule</label>
-            {mode === "later" && <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />}
+            {mode === "later" && <input type="datetime-local" value={when} max={toLocalInput(latestStart)} onChange={(e) => setWhen(e.target.value)} />}
           </div>
+          {mode === "later" && latestStart && (
+            <div className="small mut">Meta keeps uploaded images for 30 days, so this image campaign must be scheduled to start by {fmtDate(latestStart)}.</div>
+          )}
           <label className="row" style={{ gap: 8, flexWrap: "nowrap", alignItems: "flex-start" }}>
             <input type="checkbox" className="check" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
             <span className="grow">I confirm this campaign goes to exactly {a?.sendable} contacts</span>
@@ -171,6 +212,25 @@ function Progress({ campaign, reload }) {
               {campaign.completedAt && ` · Finished ${fmtDate(campaign.completedAt)}`}
               {campaign.confirmedCount != null && ` · Confirmed for ${campaign.confirmedCount} contacts`}
             </div>
+            {campaign.sendDeadline && (
+              <div className="small mut">
+                Sending window ends {fmtDate(campaign.sendDeadline)}. Recipients still queued then are not sent.
+                {campaign.notSentDeadline > 0 && <b> {campaign.notSentDeadline} not sent because the window ended.</b>}
+              </div>
+            )}
+            {campaign.contentCheck && (
+              <div className="small mut check-note">
+                {campaign.contentCheck.source === "meta"
+                  ? `Template compared with Meta ${fmtDate(campaign.contentCheck.at)}.`
+                  : `Template NOT freshly checked with Meta at ${fmtDate(campaign.contentCheck.at)}: ${campaign.contentCheck.note}`}
+              </div>
+            )}
+            {campaign.media && (
+              <div className="row small" style={{ marginTop: 8, flexWrap: "nowrap" }}>
+                <img src={campaign.media.previewUrl} alt="Header image" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+                <span className="mut">Header image {campaign.media.originalName} · sent through {campaign.media.senderNumber || "the campaign's number"}</span>
+              </div>
+            )}
           </div>
           {(campaign.status === "scheduled" || campaign.status === "sending") && (
             <button className="danger" disabled={action.busy} onClick={cancel}>{campaign.status === "scheduled" ? "Cancel schedule" : "Stop sending"}</button>
@@ -242,7 +302,7 @@ export default function CampaignDetail({ id, step }) {
       </div>
       {showSteps && !current && <div className="sub">{campaign.templateName} from {campaign.senderNumber || "the active number"}</div>}
       {current === "audience" && <AudienceStep campaign={campaign} initialIds={data.audienceIds} onSaved={() => { go(`/campaigns/${id}/review`); reload(); }} />}
-      {current === "review" && <ReviewStep campaign={campaign} template={data.template} onLaunched={() => { go(`/campaigns/${id}`); reload(); }} />}
+      {current === "review" && <ReviewStep campaign={campaign} template={data.template} onLaunched={() => { go(`/campaigns/${id}`); reload(); }} onChanged={reload} />}
       {!current && <Progress campaign={campaign} reload={reload} />}
     </>
   );

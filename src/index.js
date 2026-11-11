@@ -8,6 +8,7 @@ import campaigns from "./routes/campaigns.js";
 import inbox from "./routes/inbox.js";
 import webhook from "./routes/webhook.js";
 import admin from "./routes/admin.js";
+import media from "./routes/media.js";
 import { processRecipient, runScheduler, finalizeIfDone } from "./lib/campaigns.js";
 import { one } from "./lib/db.js";
 
@@ -28,8 +29,9 @@ app.use("/api/templates/*", requireAuth);
 app.use("/api/senders/*", requireAuth);
 app.use("/api/campaigns/*", requireAuth);
 app.use("/api/inbox/*", requireAuth);
+app.use("/api/media/*", requireAuth);
 app.use("/api/admin/*", requireAuth, requireAdmin);
-for (const p of ["/api/contacts", "/api/templates", "/api/senders", "/api/campaigns", "/api/inbox"]) app.use(p, requireAuth);
+for (const p of ["/api/contacts", "/api/templates", "/api/senders", "/api/campaigns", "/api/inbox", "/api/media"]) app.use(p, requireAuth);
 
 app.route("/api/contacts", contacts);
 app.route("/api/templates", templates);
@@ -37,6 +39,7 @@ app.route("/api/senders", senders);
 app.route("/api/campaigns", campaigns);
 app.route("/api/inbox", inbox);
 app.route("/api/admin", admin);
+app.route("/api/media", media);
 
 app.all("/api/*", (c) => c.json({ error: "Not found." }, 404));
 app.all("*", (c) => (c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.text("Not found", 404)));
