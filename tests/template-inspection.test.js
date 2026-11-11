@@ -62,6 +62,7 @@ test("one fixed-host GET uses header credential, exact configured version, no re
       assert.equal(init.method, "GET");
       assert.equal(init.redirect, "manual");
       assert.equal(init.headers.Authorization, `Bearer ${privateValue}`);
+      assert.equal(init.headers.Accept, "application/json");
       assert.ok(init.signal instanceof AbortSignal);
       assert.ok(u.searchParams.get("fields").includes("components"));
       return json({ ...raw(), paging: { next: `https://evil.example/?token=${privateValue}` } });
@@ -384,5 +385,92 @@ test("success and non-response failures do not claim a validation reason", async
     await assert.rejects(read(), (e) => e.code === "META_REQUEST_FAILED" && e.reason === null);
     globalThis.fetch = async () => { throw Error(privateValue); };
     await assert.rejects(read(), (e) => e.code === "META_UNAVAILABLE" && e.reason === null);
+  } finally { globalThis.fetch = original; }
+});
+
+// Meta documents JSON under text/javascript as well as application/json.
+for (const mime of ["application/json", "application/json;charset=UTF-8", "APPLICATION/JSON; charset=utf-8", "text/javascript", "text/javascript; charset=UTF-8", "TEXT/JAVASCRIPT ; charset=utf-8"]) {
+  test(`strict JSON inventory accepts documented MIME ${mime}`, async () => {
+    const original = globalThis.fetch;
+    try {
+      globalThis.fetch = async () => json(raw(), 200, { "Content-Type": mime });
+      const out = await read();
+      assert.equal(out.requestCount, 1);
+      assert.ok(!JSON.stringify(out).includes(privateValue));
+      assert.equal(out.inventory.reuseVerified, false);
+    } finally { globalThis.fetch = original; }
+  });
+}
+
+test("text/javascript route returns only sanitized Meta error codes for JSON error", async () => {
+  const original = globalThis.fetch;
+  const originalError = console.error;
+  let logs = "";
+  try {
+    const { env, client, t } = await fixture();
+    const before = JSON.stringify(env.DB.q("SELECT * FROM templates"));
+    let calls = 0;
+    console.error = (...args) => { logs += args.join(" "); };
+    globalThis.fetch = async () => { calls++; return json({ error: { code: 100, error_subcode: 33, message: privateValue, reason: privateValue } }, 400, { "Content-Type": "text/javascript; charset=UTF-8" }); };
+    const result = await post(client, t.id);
+    assert.equal(result.status, 502);
+    assert.equal(result.data.code, "META_REQUEST_FAILED");
+    assert.equal(result.data.reason, null);
+    assert.equal(result.data.metaCode, 100);
+    assert.equal(result.data.metaSubcode, 33);
+    assert.ok(!JSON.stringify(result.data).includes(privateValue));
+    assert.equal(logs, "");
+    assert.equal(calls, 1);
+    assert.equal(JSON.stringify(env.DB.q("SELECT * FROM templates")), before);
+    assert.equal(env.DB.q("SELECT * FROM messages").length, 0);
+    assert.equal(env.CAMPAIGN_QUEUE.sent.length, 0);
+    assert.equal((await post(client, t.id)).status, 429);
+    assert.equal(calls, 1);
+  } finally { globalThis.fetch = original; console.error = originalError; }
+});
+
+test("text/javascript is parsed only as JSON, refusing executable JS, JSONP and invalid UTF-8", async () => {
+  const original = globalThis.fetch;
+  try {
+    for (const value of [`callback(${JSON.stringify(raw())});`, `globalThis.__inspectionExecuted = true;`, `(${JSON.stringify(raw())})`, "while (true) {}", "<html>not JSON</html>"]) {
+      globalThis.fetch = async () => new Response(value, { headers: { "Content-Type": "text/javascript" } });
+      await assert.rejects(read(), (e) => e.code === "INVALID_RESPONSE" && e.reason === "JSON_INVALID" && !JSON.stringify(e).includes(privateValue));
+    }
+    assert.equal(globalThis.__inspectionExecuted, undefined);
+    globalThis.fetch = async () => new Response(new Uint8Array([0xc3, 0x28]), { headers: { "Content-Type": "text/javascript" } });
+    await assert.rejects(read(), (e) => e.reason === "UTF8_INVALID");
+  } finally { globalThis.fetch = original; }
+});
+
+test("MIME compatibility does not accept missing, HTML, plain text, suffixes or arbitrary JSON types", async () => {
+  const original = globalThis.fetch;
+  try {
+    for (const mime of [null, "", "text/html", "text/plain", "application/javascript", "application/problem+json", "application/jsonp", "text/javascript-malicious", "text/javascript, text/html"]) {
+      globalThis.fetch = async () => {
+        const res = json(raw());
+        if (mime === null) res.headers.delete("Content-Type");
+        else res.headers.set("Content-Type", mime);
+        return res;
+      };
+      await assert.rejects(read(), (e) => e.code === "INVALID_RESPONSE" && e.reason === "CONTENT_TYPE");
+    }
+  } finally { globalThis.fetch = original; }
+});
+
+test("text/javascript retains declared and streamed size, redirect, ID and inventory limits", async () => {
+  const original = globalThis.fetch;
+  try {
+    const headers = { "Content-Type": "text/javascript" };
+    for (const [response, code, reason] of [
+      [json(raw(), 200, { ...headers, "Content-Length": String(INSPECTION_MAX_BYTES + 1) }), "RESPONSE_TOO_LARGE", null],
+      [new Response(new Uint8Array(INSPECTION_MAX_BYTES + 1), { headers }), "RESPONSE_TOO_LARGE", null],
+      [new Response(null, { status: 302, headers: { ...headers, Location: "https://evil.example/" } }), "REDIRECT_REFUSED", null],
+      [json({ id: "99999999" }, 200, headers), "INVALID_RESPONSE", "ID_MISMATCH"],
+      [json({ id: metaId, components: Array(31).fill({}) }, 200, headers), "INVALID_RESPONSE", "COMPONENTS_LIMIT"],
+      [json([privateValue], 200, headers), "INVALID_RESPONSE", "ROOT_TYPE"],
+    ]) {
+      globalThis.fetch = async () => response;
+      await assert.rejects(read(), (e) => e.code === code && e.reason === reason);
+    }
   } finally { globalThis.fetch = original; }
 });
