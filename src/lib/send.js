@@ -31,7 +31,7 @@ export async function sendToContact(env, {
   accountId,
   contactId,
   kind,                 // 'template' | 'text'
-  template,             // { name, language, bodyParams, bodyText }
+  template,             // { name, language, bodyParams, bodyText, headerImageId?, mediaAssetId? }
   text,
   campaignId = null,
   senderId = null,      // campaigns pin the sender chosen at launch
@@ -62,9 +62,10 @@ export async function sendToContact(env, {
   // Record the attempt before calling Meta, so a crash never leaves a send unrecorded.
   await run(
     db,
-    `INSERT INTO messages (id, account_id, contact_id, sender_id, direction, kind, body, template_name, campaign_id, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'outbound', ?, ?, ?, ?, 'sending', ?, ?)`,
-    messageId, accountId, contactId, sender.id, kind, body, kind === "template" ? template.name : null, campaignId, ts, ts,
+    `INSERT INTO messages (id, account_id, contact_id, sender_id, direction, kind, body, template_name, campaign_id, media_asset_id, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'outbound', ?, ?, ?, ?, ?, 'sending', ?, ?)`,
+    messageId, accountId, contactId, sender.id, kind, body, kind === "template" ? template.name : null, campaignId,
+    kind === "template" ? (template.mediaAssetId || null) : null, ts, ts,
   );
 
   try {
@@ -75,6 +76,7 @@ export async function sendToContact(env, {
         name: template.name,
         language: template.language,
         bodyParams: template.bodyParams || [],
+        headerImageId: template.headerImageId || null,
       });
     await run(
       db,
