@@ -189,4 +189,4 @@ export async function inspectMetaTemplate(env, sender, metaTemplateId) {
     controller.abort();
     if (reader) { try { void reader.cancel().catch(() => {}); } catch { /* no upstream details logged */ } }
   }
-                }
+}
