@@ -162,3 +162,11 @@ tr:last-child td { border-bottom: 0; }
   .mobile-records { display: block; }
   .desktop-records { display: none; }
 }
+
+/* Temporary template inspection, hidden unless the server's narrow gate is enabled */
+.inspection-template { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; overflow-wrap: anywhere; }
+.inspection-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.inspection-row > :last-child { text-align: right; overflow-wrap: anywhere; min-width: 0; }
+.inspection-row > :first-child { flex-shrink: 0; }
+.inspection-json { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: var(--soft); border-radius: var(--r-sm); font-size: 11px; }
+.template-inspection summary { cursor: pointer; font-size: 13px; }
