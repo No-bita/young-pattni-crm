@@ -111,4 +111,4 @@ export function presentTemplate(t) {
     unsupportedReason: t.status !== "APPROVED" ? `Not approved by Meta (status ${t.status}).` : reason,
     syncedAt: t.synced_at,
   };
-    }
+}
