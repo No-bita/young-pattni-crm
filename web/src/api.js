@@ -78,4 +78,4 @@ export async function apiUpload(path, file) {
 export function fmtBytes(n) {
   if (n == null) return "";
   return n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
-         }
+}
