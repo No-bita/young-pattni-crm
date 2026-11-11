@@ -4,13 +4,23 @@ export const INSPECTION_FIELDS = ["id", "name", "language", "status", "category"
 export const INSPECTION_MAX_BYTES = 262144;
 export const INSPECTION_TIMEOUT_MS = 10000;
 
+// Fixed reason codes only: never include upstream values, keys or identifiers.
+const RESPONSE_REASONS = new Set([
+  "CONTENT_TYPE", "BODY_MISSING", "UTF8_INVALID", "JSON_INVALID", "ROOT_TYPE",
+  "ID_MISSING", "ID_MISMATCH", "COMPONENTS_TYPE", "COMPONENTS_LIMIT", "COMPONENT_TYPE",
+  "BUTTONS_TYPE", "BUTTONS_LIMIT", "BUTTON_TYPE", "HEADER_REFERENCES_LIMIT", "EXAMPLE_VALUES_LIMIT",
+]);
+export const safeInspectionReason = (value) => RESPONSE_REASONS.has(value) ? value : null;
+const invalidResponse = (reason) => new InspectionError("INVALID_RESPONSE", 502, null, null, reason);
+
 export class InspectionError extends Error {
-  constructor(code, status = 502, metaCode = null, metaSubcode = null) {
+  constructor(code, status = 502, metaCode = null, metaSubcode = null, reason = null) {
     super(code);
     this.code = code;
     this.status = status;
     this.metaCode = Number.isSafeInteger(metaCode) ? metaCode : null;
     this.metaSubcode = Number.isSafeInteger(metaSubcode) ? metaSubcode : null;
+    this.reason = code === "INVALID_RESPONSE" ? safeInspectionReason(reason) : null;
   }
 }
 
@@ -25,8 +35,9 @@ const BUTTON_KEYS = ["type", "text", "url", "phone_number", "example"];
 function keys(o, allowed) {
   return { present: allowed.filter((k) => own(o, k)), otherCount: Object.keys(o).filter((k) => !allowed.includes(k)).length };
 }
-function list(v, max) {
-  if (!Array.isArray(v) || v.length > max) throw new InspectionError("INVALID_RESPONSE");
+function list(v, max, typeReason, limitReason) {
+  if (!Array.isArray(v)) throw invalidResponse(typeReason);
+  if (v.length > max) throw invalidResponse(limitReason);
   return v;
 }
 function textShape(v, present) {
@@ -45,7 +56,7 @@ function valueShape(v, depth = 0) {
   if (typeof v === "string") out.length = v.length;
   if (Array.isArray(v)) {
     out.count = v.length;
-    if (depth < 3) out.items = list(v, 40).map((x) => valueShape(x, depth + 1));
+    if (depth < 3) out.items = list(v, 40, null, "EXAMPLE_VALUES_LIMIT").map((x) => valueShape(x, depth + 1));
   } else if (object(v)) {
     out.fields = keys(v, ["param_name", "example"]);
     if (depth < 3) {
@@ -76,7 +87,7 @@ function exampleShape(c) {
   out.fields = keys(v, EXAMPLE_KEYS);
   if (own(v, "header_handle")) {
     out.headerHandle = { state: state(v.header_handle, true), kind: kind(v.header_handle) };
-    if (Array.isArray(v.header_handle)) out.headerHandle.items = list(v.header_handle, 10).map(reference);
+    if (Array.isArray(v.header_handle)) out.headerHandle.items = list(v.header_handle, 10, null, "HEADER_REFERENCES_LIMIT").map(reference);
     else out.headerHandle.item = reference(v.header_handle);
   }
   for (const k of EXAMPLE_KEYS.filter((k) => k !== "header_handle")) {
@@ -85,7 +96,7 @@ function exampleShape(c) {
   return out;
 }
 function buttonShape(b) {
-  if (!object(b)) throw new InspectionError("INVALID_RESPONSE");
+  if (!object(b)) throw invalidResponse("BUTTON_TYPE");
   return {
     type: known(b.type, ["QUICK_REPLY", "URL", "PHONE_NUMBER", "COPY_CODE", "OTP", "FLOW", "CATALOG", "MPM"]),
     fields: keys(b, BUTTON_KEYS),
@@ -95,10 +106,10 @@ function buttonShape(b) {
   };
 }
 export function templateInventory(t) {
-  if (!object(t)) throw new InspectionError("INVALID_RESPONSE");
+  if (!object(t)) throw invalidResponse("ROOT_TYPE");
   const componentsPresent = own(t, "components");
-  const components = (componentsPresent ? list(t.components, 30) : []).map((c) => {
-    if (!object(c)) throw new InspectionError("INVALID_RESPONSE");
+  const components = (componentsPresent ? list(t.components, 30, "COMPONENTS_TYPE", "COMPONENTS_LIMIT") : []).map((c) => {
+    if (!object(c)) throw invalidResponse("COMPONENT_TYPE");
     const out = {
       type: known(c.type, ["HEADER", "BODY", "FOOTER", "BUTTONS"]),
       fields: keys(c, COMPONENT_KEYS),
@@ -106,7 +117,7 @@ export function templateInventory(t) {
       example: exampleShape(c),
     };
     if (own(c, "format")) out.format = known(c.format, ["TEXT", "IMAGE", "VIDEO", "DOCUMENT", "LOCATION", "GIF"]);
-    if (own(c, "buttons")) out.buttons = list(c.buttons, 20).map(buttonShape);
+    if (own(c, "buttons")) out.buttons = list(c.buttons, 20, "BUTTONS_TYPE", "BUTTONS_LIMIT").map(buttonShape);
     return out;
   });
   return {
@@ -138,8 +149,8 @@ export async function inspectMetaTemplate(env, sender, metaTemplateId) {
     if (res.redirected || (res.status >= 300 && res.status < 400)) throw new InspectionError("REDIRECT_REFUSED");
     const size = res.headers.get("Content-Length");
     if (size && (!/^\d+$/.test(size) || Number(size) > INSPECTION_MAX_BYTES)) throw new InspectionError("RESPONSE_TOO_LARGE");
-    if (!/^application\/json(?:\s*;|$)/i.test(res.headers.get("Content-Type") || "")) throw new InspectionError("INVALID_RESPONSE");
-    if (!res.body) throw new InspectionError("INVALID_RESPONSE");
+    if (!/^application\/json(?:\s*;|$)/i.test(res.headers.get("Content-Type") || "")) throw invalidResponse("CONTENT_TYPE");
+    if (!res.body) throw invalidResponse("BODY_MISSING");
     reader = res.body.getReader();
     let total = 0;
     const chunks = [];
@@ -153,11 +164,16 @@ export async function inspectMetaTemplate(env, sender, metaTemplateId) {
     const bytes = new Uint8Array(total);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    let text;
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+    catch { throw invalidResponse("UTF8_INVALID"); }
     let body;
-    try { body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
-    catch { throw new InspectionError("INVALID_RESPONSE"); }
+    try { body = JSON.parse(text); }
+    catch { throw invalidResponse("JSON_INVALID"); }
     if (!res.ok) throw new InspectionError("META_REQUEST_FAILED", 502, body?.error?.code, body?.error?.error_subcode);
-    if (!object(body) || String(body.id) !== String(metaTemplateId)) throw new InspectionError("INVALID_RESPONSE");
+    if (!object(body)) throw invalidResponse("ROOT_TYPE");
+    if (!own(body, "id")) throw invalidResponse("ID_MISSING");
+    if (String(body.id) !== String(metaTemplateId)) throw invalidResponse("ID_MISMATCH");
     return { graphVersion: version, requestCount: 1, inventory: templateInventory(body) };
   };
   try {
