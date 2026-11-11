@@ -45,7 +45,7 @@ function TestPanel({ sender, onDone }) {
 
   return (
     <div className="stack" style={{ marginTop: 12 }}>
-      <div className="mut small">The test checks that the token can read this number, that the number belongs to the WhatsApp Business Account, and fetches its templates. You can also send one real test message.</div>
+      <div className="mut small">The test checks that the token can read this number, that the number belongs to the WhatsApp Business Account, and fetches that Messaging account&apos;s templates. You can also send one real test message.</div>
       <div className="row">
         <input placeholder="Optional: your phone for a test message" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
         {testPhone && (
@@ -56,7 +56,7 @@ function TestPanel({ sender, onDone }) {
         )}
         <button className="secondary" disabled={action.busy || (testPhone && !templateId)} onClick={test}>{action.busy ? "Testing…" : "Run test"}</button>
       </div>
-      {testPhone && tpls.data && tpls.data.templates.length === 0 && <div className="mut small">Run the test once without a phone to load this number's templates.</div>}
+      {testPhone && tpls.data && tpls.data.templates.length === 0 && <div className="mut small">Run the test once without a phone to load the templates from this number&apos;s Messaging account. Only text-only templates without variables are offered here; image templates are not sent by this test.</div>}
       <ErrorBox error={action.error} />
       {result && (result.ok ? <div className="alert ok">Test passed.</div> : <div className="alert bad">Test failed: {result.error}</div>)}
     </div>
@@ -73,7 +73,7 @@ function Activate({ sender, onDone }) {
     <div className="stack" style={{ marginTop: 12 }}>
       <ErrorBox error={action.error} />
       <div><button disabled={action.busy || !sender.testedAt} onClick={activate}>Activate this number</button></div>
-      <div className="mut small">Activating makes this the only number that sends for your account. The current number is kept but stops sending. Switching is refused while a campaign is scheduled or sending, or if draft campaigns use templates that are not approved on this number.</div>
+      <div className="mut small">Activating makes this the only number that sends for your account. The current number is kept but stops sending. Switching is refused while a campaign is scheduled or sending, or if draft campaigns use templates that are not approved in this number&apos;s Messaging account. Draft image campaigns need their image uploaded again on the new number.</div>
     </div>
   );
 }
@@ -162,4 +162,4 @@ export default function NumberPage() {
       )}
     </>
   );
-}
+            }
