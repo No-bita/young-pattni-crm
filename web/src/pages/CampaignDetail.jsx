@@ -254,18 +254,18 @@ function Progress({ campaign, reload }) {
             <>
               <div className="mobile-records">
                 {rec.data.recipients.map((x) => (
-                  <div key={x.id} className="record">
-                    <div className="record-head"><a href={`#/inbox/${x.contactId}`} aria-label={`Open ${x.name || x.phone} in Inbox`} style={{ color: "inherit" }}><b>{x.name || "No name"}</b></a><Pill status={x.status} /></div>
+                  <a key={x.id} className="record" href={`#/inbox/${x.contactId}`} aria-label={`Open ${x.name || x.phone} in Inbox`} style={{ display: "block", color: "inherit", textDecoration: "none" }}>
+                    <div className="record-head"><b>{x.name || "No name"}</b><Pill status={x.status} /></div>
                     <div className="small mut mono">{x.phone}</div>
                     {x.error && <div className="small record-error">{x.error}</div>}
-                  </div>
+                  </a>
                 ))}
               </div>
             <div className="table-wrap desktop-records">
               <table>
                 <thead><tr><th>Contact</th><th>Phone</th><th>Status</th><th>Detail</th></tr></thead>
                 <tbody>{rec.data.recipients.map((x) => (
-                  <tr key={x.id}><td><a href={`#/inbox/${x.contactId}`} aria-label={`Open ${x.name || x.phone} in Inbox`} style={{ color: "inherit" }}>{x.name || <span className="mut">No name</span>}</a></td><td className="mono">{x.phone}</td><td><Pill status={x.status} /></td><td className="mut small">{x.error}</td></tr>
+                  <tr key={x.id} onClick={() => go(`/inbox/${x.contactId}`)} style={{ cursor: "pointer" }}><td><a href={`#/inbox/${x.contactId}`} aria-label={`Open ${x.name || x.phone} in Inbox`} style={{ color: "inherit" }}>{x.name || <span className="mut">No name</span>}</a></td><td className="mono">{x.phone}</td><td><Pill status={x.status} /></td><td className="mut small">{x.error}</td></tr>
                 ))}</tbody>
               </table>
             </div>
