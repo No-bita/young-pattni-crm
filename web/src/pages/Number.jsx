@@ -45,7 +45,7 @@ function TestPanel({ sender, onDone }) {
 
   return (
     <div className="stack" style={{ marginTop: 12 }}>
-      <div className="mut small">The test checks that the token can read this number, that the number belongs to the WhatsApp Business Account, and fetches that Messaging account&apos;s templates. You can also send one real test message.</div>
+      <div className="mut small">Checks the token, number and account link, and loads templates. Can also send one real test message.</div>
       <div className="row">
         <input placeholder="Optional: your phone for a test message" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
         {testPhone && (
@@ -56,7 +56,7 @@ function TestPanel({ sender, onDone }) {
         )}
         <button className="secondary" disabled={action.busy || (testPhone && !templateId)} onClick={test}>{action.busy ? "Testing…" : "Run test"}</button>
       </div>
-      {testPhone && tpls.data && tpls.data.templates.length === 0 && <div className="mut small">Run the test once without a phone to load the templates from this number&apos;s Messaging account. Only text-only templates without variables are offered here; image templates are not sent by this test.</div>}
+      {testPhone && tpls.data && tpls.data.templates.length === 0 && <div className="mut small">Run once without a phone to load templates. Only text templates without variables are offered; image templates are not sent.</div>}
       <ErrorBox error={action.error} />
       {result && (result.ok ? <div className="alert ok">Test passed.</div> : <div className="alert bad">Test failed: {result.error}</div>)}
     </div>

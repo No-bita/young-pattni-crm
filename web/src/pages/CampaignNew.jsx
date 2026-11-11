@@ -22,7 +22,7 @@ export function TemplateFields({ template, params, setParams }) {
               <option value="text">Fixed text</option>
             </select>
             {p.type === "contact_name" ? (
-              <input className="grow" placeholder="If no name: there" value={p.fallback} onChange={(e) => {
+              <input className="grow" placeholder="Fallback if no name" value={p.fallback} onChange={(e) => {
                 const next = [...params]; next[i] = { ...p, fallback: e.target.value }; setParams(next);
               }} />
             ) : (
@@ -82,7 +82,7 @@ function LookupByName({ senderNumber, onFound }) {
     <form className="card stack lookup-card" onSubmit={submit}>
       <div>
         <b>Find a template by name</b>
-        <div className="small mut">Type it exactly as shown in WhatsApp Manager. The CRM looks it up in the Messaging account that {senderNumber} belongs to.</div>
+        <div className="small mut">Type it exactly as shown in WhatsApp Manager.</div>
       </div>
       <label className="field"><span>Template name</span>
         <input value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="youth_camp_poster" autoCapitalize="none" autoCorrect="off" spellCheck={false} required />
@@ -162,13 +162,13 @@ export default function CampaignNew() {
       ) : data && (
         <>
           <label className="field" style={{ marginBottom: 18 }}>
-            <span>Name it something you'll recognise</span>
+            <span>Campaign name</span>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="November offer" />
           </label>
 
           <h2>Pick the message</h2>
           <div className="small mut" style={{ margin: "-4px 0 10px" }}>
-            Approved templates in the Messaging account (WhatsApp Business Account) that {data.sender.displayNumber} belongs to
+            Approved templates for {data.sender.displayNumber}
           </div>
           {usable.length === 0 && <div className="alert warn">No approved templates this app can send in this Messaging account. Create one in Meta&apos;s WhatsApp Manager, wait for approval, then refresh.</div>}
           {usable.map((t) => {
