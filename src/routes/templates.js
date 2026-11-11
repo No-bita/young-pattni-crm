@@ -1,3 +1,4 @@
+import inspection from "./template-inspection.js";
 import { Hono } from "hono";
 import { all } from "../lib/db.js";
 import { accountId } from "../lib/http.js";
@@ -5,6 +6,7 @@ import { getActiveSender } from "../lib/send.js";
 import { syncTemplates, presentTemplate } from "../lib/templates.js";
 
 const templates = new Hono();
+templates.route("/", inspection);
 
 // Templates of the ACTIVE sender's WABA only.
 templates.get("/", async (c) => {
