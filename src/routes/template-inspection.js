@@ -3,7 +3,7 @@ import { accountId } from "../lib/http.js";
 import { one } from "../lib/db.js";
 import { getActiveSender } from "../lib/send.js";
 import { inspectionGate, claimInspection } from "../lib/template-inspection-gate.js";
-import { inspectMetaTemplate, InspectionError } from "../lib/template-inspection.js";
+import { inspectMetaTemplate, InspectionError, safeInspectionReason } from "../lib/template-inspection.js";
 
 const inspection = new Hono();
 const messages = {
@@ -60,6 +60,7 @@ inspection.post("/:id/inspect", async (c) => {
   } catch (e) {
     const safe = e instanceof InspectionError ? e : new InspectionError("META_UNAVAILABLE");
     return c.json({ error: messages[safe.code] || messages.META_UNAVAILABLE, code: safe.code,
+      reason: safe.code === "INVALID_RESPONSE" ? safeInspectionReason(safe.reason) : null,
       metaCode: safe.metaCode, metaSubcode: safe.metaSubcode }, safe.status);
   } finally { if (release) release(); }
 });
