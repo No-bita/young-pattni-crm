@@ -4,6 +4,11 @@ import { ErrorBox, useApi } from "./ui.jsx";
 
 const sourceLabel = (r) => ({ url: "Image URL returned", upload_handle: "Approval upload handle returned", numeric_reference: "Numeric reference returned", opaque_string: "Other reference returned", invalid_url: "Invalid URL returned" }[r.kind] || "Unexpected reference type");
 
+const RESPONSE_REASONS = new Set([
+  "CONTENT_TYPE", "BODY_MISSING", "UTF8_INVALID", "JSON_INVALID", "ROOT_TYPE",
+  "ID_MISSING", "ID_MISMATCH", "COMPONENTS_TYPE", "COMPONENTS_LIMIT", "COMPONENT_TYPE",
+  "BUTTONS_TYPE", "BUTTONS_LIMIT", "BUTTON_TYPE", "HEADER_REFERENCES_LIMIT", "EXAMPLE_VALUES_LIMIT",
+]);
 export default function TemplateInspection() {
   const { data } = useApi("/templates/inspection");
   const [busy, setBusy] = useState(false);
@@ -34,6 +39,7 @@ export default function TemplateInspection() {
       setBusy(false);
     }
   };
+  const reason = error?.data?.code === "INVALID_RESPONSE" && RESPONSE_REASONS.has(error?.data?.reason) ? error.data.reason : null;
   const inventory = result?.inventory;
   const headers = inventory?.components?.filter((c) => c.type === "HEADER") || [];
   const refs = headers.flatMap((c) => c.example?.headerHandle?.items || (c.example?.headerHandle?.item ? [c.example.headerHandle.item] : []))
@@ -53,6 +59,9 @@ export default function TemplateInspection() {
       <div aria-live="polite" aria-busy={busy}>
         {busy && <p className="small mut">One template, one read. Nothing is being sent</p>}
         <div style={{ marginTop: error || result ? 12 : 0 }}><ErrorBox error={error} /></div>
+        {reason && <div className="small" role="status" style={{ marginTop: 8 }}>
+          Inspection reason: <code>{reason}</code>. No response values are shown. Don't retry yet
+        </div>}
         {inventory && <>
           <div className={`alert ${refs.length ? "ok" : "warn"}`}>
             {refs.length ? "Meta returned a header reference" : inventory.componentsState === "absent" ? "Meta did not return the components field" : "No header reference found in this response"}
