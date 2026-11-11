@@ -1,3 +1,4 @@
+import TemplateInspection from "../components/TemplateInspection.jsx";
 import { useState } from "react";
 import { api, go } from "../api.js";
 import { Empty, ErrorBox, Loading, useAction, useApi } from "../components/ui.jsx";
@@ -79,6 +80,7 @@ export default function CampaignNew() {
     <>
       <div className="head"><h1>New campaign</h1><span className="small faint">1 of 3</span></div>
       <div className="sub">Message → Audience → Send</div>
+      <TemplateInspection />
       <ErrorBox error={error || action.error} onRetry={error ? reload : undefined} />
       {loading && !data ? <Loading /> : data && !data.sender ? (
         <div className="card"><Empty>No active WhatsApp number. <a href="#/number">Set one up</a> before creating a campaign.</Empty></div>
