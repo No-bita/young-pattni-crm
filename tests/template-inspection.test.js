@@ -318,3 +318,71 @@ test("real Node fetch manual redirect returns refusal without following target",
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+const reasonCases = [
+  ["CONTENT_TYPE", () => new Response(privateValue, { headers: { "Content-Type": "text/html" } })],
+  ["BODY_MISSING", () => new Response(null, { headers: { "Content-Type": "application/json" } })],
+  ["UTF8_INVALID", () => new Response(new Uint8Array([0xc3, 0x28]), { headers: { "Content-Type": "application/json" } })],
+  ["JSON_INVALID", () => new Response(privateValue, { headers: { "Content-Type": "application/json" } })],
+  ["ROOT_TYPE", () => json([privateValue])],
+  ["ID_MISSING", () => json({ name: privateValue })],
+  ["ID_MISMATCH", () => json({ id: "99999999", name: privateValue })],
+  ["COMPONENTS_TYPE", () => json({ id: metaId, components: null })],
+  ["COMPONENTS_LIMIT", () => json({ id: metaId, components: Array(31).fill({ text: privateValue }) })],
+  ["COMPONENT_TYPE", () => json({ id: metaId, components: [privateValue] })],
+  ["BUTTONS_TYPE", () => json({ id: metaId, components: [{ buttons: {} }] })],
+  ["BUTTONS_LIMIT", () => json({ id: metaId, components: [{ buttons: Array(21).fill({ text: privateValue }) }] })],
+  ["BUTTON_TYPE", () => json({ id: metaId, components: [{ buttons: [privateValue] }] })],
+  ["HEADER_REFERENCES_LIMIT", () => json({ id: metaId, components: [{ example: { header_handle: Array(11).fill(privateValue) } }] })],
+  ["EXAMPLE_VALUES_LIMIT", () => json({ id: metaId, components: [{ example: { body_text: [Array(41).fill(privateValue)] } }] })],
+];
+for (const [reason, response] of reasonCases) {
+  test(`fixed failure reason ${reason} survives route without private response values or logs`, async () => {
+    const original = globalThis.fetch;
+    const originalError = console.error;
+    let logs = "";
+    try {
+      const { env, client, t } = await fixture();
+      const before = JSON.stringify(env.DB.q("SELECT * FROM templates"));
+      let calls = 0;
+      console.error = (...args) => { logs += args.join(" "); };
+      globalThis.fetch = async () => { calls++; return response(); };
+      const result = await post(client, t.id);
+      assert.equal(result.status, 502);
+      assert.equal(result.data.code, "INVALID_RESPONSE");
+      assert.equal(result.data.reason, reason);
+      assert.equal(result.headers.get("Cache-Control"), "no-store");
+      assert.ok(!JSON.stringify(result.data).includes(privateValue));
+      assert.ok(!JSON.stringify(result.data).includes(metaId));
+      assert.equal(logs, "");
+      assert.equal(calls, 1);
+      assert.equal(JSON.stringify(env.DB.q("SELECT * FROM templates")), before);
+      assert.equal(env.DB.q("SELECT * FROM messages").length, 0);
+      assert.equal(env.CAMPAIGN_QUEUE.sent.length, 0);
+      assert.equal((await post(client, t.id)).status, 429);
+      assert.equal(calls, 1);
+    } finally { globalThis.fetch = original; console.error = originalError; }
+  });
+}
+
+test("failure reason allowlist rejects arbitrary values and non-response errors", async () => {
+  const { InspectionError, safeInspectionReason } = await import("../src/lib/template-inspection.js");
+  for (const value of [privateValue, "content_type", {}, ["CONTENT_TYPE"], null, undefined]) {
+    assert.equal(safeInspectionReason(value), null);
+    assert.equal(new InspectionError("INVALID_RESPONSE", 502, null, null, value).reason, null);
+  }
+  assert.equal(new InspectionError("META_UNAVAILABLE", 502, null, null, "ID_MISMATCH").reason, null);
+  assert.equal(new InspectionError("INVALID_RESPONSE", 502, null, null, "ID_MISMATCH").reason, "ID_MISMATCH");
+});
+
+test("success and non-response failures do not claim a validation reason", async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => json(raw());
+    assert.equal(Object.hasOwn(await read(), "reason"), false);
+    globalThis.fetch = async () => json({ error: { code: 100, message: privateValue, reason: "ID_MISMATCH" } }, 400);
+    await assert.rejects(read(), (e) => e.code === "META_REQUEST_FAILED" && e.reason === null);
+    globalThis.fetch = async () => { throw Error(privateValue); };
+    await assert.rejects(read(), (e) => e.code === "META_UNAVAILABLE" && e.reason === null);
+  } finally { globalThis.fetch = original; }
+});
