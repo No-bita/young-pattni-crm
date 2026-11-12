@@ -3,6 +3,7 @@ import { api, statusPill } from "../api.js";
 
 export function Pill({ status, children }) {
   const { label, cls } = statusPill(status);
+  if (cls === "plain") return <span className="mut small">{children || label}</span>;
   return <span className={`pill ${cls}`}>{children || label}</span>;
 }
 
