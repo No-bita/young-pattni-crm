@@ -34,7 +34,7 @@ migrations_dir = "migrations"
 # Create it in the Springboard Cloudflare account (no public access, no custom domain), then fill the name.
 [[r2_buckets]]
 binding = "MEDIA_BUCKET"
-bucket_name = "replace-me-media-bucket"   # placeholder: create the private bucket, then put its real name here
+bucket_name = "majboot-pattni-media"
 
 [[queues.producers]]
 binding = "CAMPAIGN_QUEUE"
