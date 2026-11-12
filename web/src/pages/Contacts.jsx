@@ -34,14 +34,83 @@ function toImportRows(table) {
   return { rows: table.slice(1).map((r) => ({ phone: (r[phoneCol] || "").trim(), name: nameCol >= 0 ? (r[nameCol] || "").trim() : "" })) };
 }
 
+// Pre-import review: shown only when the file would change a saved name or repeats a number
+// with different names. Nothing is preselected; every conflict needs an explicit choice.
+function ConflictReview({ review, busy, onCancel, onImport }) {
+  const [choices, setChoices] = useState({});
+  const [repeatChoices, setRepeatChoices] = useState({});
+  const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+  const allResolved = review.conflicts.every((c) => has(choices, c.phone)) && review.repeats.every((r) => has(repeatChoices, r.phone));
+  const setAll = (v) => setChoices(Object.fromEntries(review.conflicts.map((c) => [c.phone, v])));
+  const total = review.conflicts.length + review.repeats.length;
+  return (
+    <div className="ovl">
+      <div className="modal">
+        <h2>Review {total} {total === 1 ? "conflict" : "conflicts"} before importing</h2>
+        {review.conflicts.length > 0 && (
+          <>
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+              <b className="small">Already in your contacts ({review.conflicts.length})</b>
+              <span className="small">
+                <button className="link-btn" onClick={() => setAll("update")}>Update all</button>{" · "}
+                <button className="link-btn" onClick={() => setAll("discard")}>Discard all</button>
+              </span>
+            </div>
+            {review.conflicts.map((c) => (
+              <div className="confr" key={c.phone}>
+                <div className="grow">
+                  <b>{c.phoneDisplay}</b>
+                  <div className="small mut">Saved: {c.savedName || "No name"} &rarr; File: {c.incomingNames.join(" or ")}</div>
+                  {c.optedOut && <div className="small optflag">Opted out - stays opted out either way</div>}
+                </div>
+                <div className="seg">
+                  <button className={choices[c.phone] === "update" ? "on" : ""} onClick={() => setChoices({ ...choices, [c.phone]: "update" })}>Update</button>
+                  <button className={choices[c.phone] === "discard" ? "on" : ""} onClick={() => setChoices({ ...choices, [c.phone]: "discard" })}>Discard</button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+        {review.repeats.length > 0 && (
+          <>
+            <div style={{ marginTop: 14 }}><b className="small">Repeated in this file ({review.repeats.length})</b></div>
+            {review.repeats.map((r) => (
+              <div className="confr" key={r.phone}>
+                <div className="grow">
+                  <b>{r.phoneDisplay}</b>
+                  <div className="small mut">Appears {r.names.length > 2 ? `${r.names.length} times` : "twice"} with different entries. Keep which one?</div>
+                </div>
+                <div className="seg">
+                  {r.names.map((n) => (
+                    <button key={n.row} className={has(repeatChoices, r.phone) && repeatChoices[r.phone] === n.name ? "on" : ""} onClick={() => setRepeatChoices({ ...repeatChoices, [r.phone]: n.name })}>{n.name || "No name"} <span className="faint">(row {n.row})</span></button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+        <div className="mut small" style={{ margin: "14px 0" }}>
+          Update replaces the saved name with the one in your file. Discard keeps the saved contact exactly as it is - nothing is removed. Contacts who opted out stay opted out either way.
+        </div>
+        <div className="row">
+          <button className="grow" disabled={!allResolved || busy} onClick={() => onImport({ resolutions: choices, repeatChoices })}>{busy ? "Importing…" : "Import"}</button>
+          <button className="secondary" disabled={busy} onClick={onCancel}>Back</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Importer({ onDone }) {
   const [parsed, setParsed] = useState(null);
   const [result, setResult] = useState(null);
+  const [review, setReview] = useState(null);
   const { busy, error, run, setError } = useAction();
 
   const onFile = async (e) => {
     setResult(null);
     setError(null);
+    setReview(null);
     const file = e.target.files?.[0];
     if (!file) return;
     const out = toImportRows(parseCsv(await file.text()));
@@ -49,11 +118,21 @@ function Importer({ onDone }) {
     setParsed(out.error ? null : { name: file.name, rows: out.rows });
   };
 
-  const submit = () => run(async () => {
-    const res = await api("/contacts/import", { method: "POST", body: { rows: parsed.rows } });
+  const doImport = (decisions) => run(async () => {
+    const res = await api("/contacts/import", { method: "POST", body: { rows: parsed.rows, ...decisions } });
     setResult(res);
     setParsed(null);
+    setReview(null);
     onDone();
+  });
+
+  const submit = () => run(async () => {
+    const check = await api("/contacts/import/check", { method: "POST", body: { rows: parsed.rows } });
+    if (check.conflicts.length || check.repeats.length) {
+      setReview(check);
+    } else {
+      await doImport({});
+    }
   });
 
   return (
@@ -88,6 +167,7 @@ function Importer({ onDone }) {
           </div>
         )}
       </div>
+      {review && <ConflictReview review={review} busy={busy} onCancel={() => setReview(null)} onImport={doImport} />}
     </div>
   );
 }

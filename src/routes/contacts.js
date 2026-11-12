@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { all, one, run, newId, nowIso } from "../lib/db.js";
 import { normalizePhone, PhoneError, formatPhone } from "../lib/phone.js";
-import { accountId, readJson, str, intEnv } from "../lib/http.js";
+import { accountId, readJson, str, intEnv, HttpError } from "../lib/http.js";
 
 const contacts = new Hono();
 const MAX_IMPORT_ROWS = 5000;
@@ -79,29 +79,113 @@ contacts.patch("/:id", async (c) => {
 });
 
 // Rows are parsed from CSV in the browser and sent as JSON: [{ phone, name }].
-// Existing contacts keep their suppression; a non-empty name updates the stored name.
+// Rows are grouped by normalized number so repeats inside the file collapse into one contact.
+function parseImportRows(rows) {
+  const invalid = [];
+  const seen = new Map();
+  rows.forEach((row, i) => {
+    try {
+      const phone = normalizePhone(row?.phone);
+      const entry = { name: str(row?.name, 120), row: i + 1 };
+      const group = seen.get(phone);
+      if (group) group.rows.push(entry);
+      else seen.set(phone, { phone, rows: [entry] });
+    } catch (e) {
+      invalid.push({ row: i + 1, phone: str(row?.phone, 40), error: e instanceof PhoneError ? e.message : "Invalid row." });
+    }
+  });
+  return { invalid, groups: [...seen.values()] };
+}
+
+// Distinct names in one number's group, in first-appearance order; "" represents a blank name row.
+function distinctNames(group) {
+  const seen = new Set();
+  const out = [];
+  for (const r of group.rows) {
+    if (!seen.has(r.name)) {
+      seen.add(r.name);
+      out.push({ name: r.name, row: r.row });
+    }
+  }
+  return out;
+}
+
+// The name a group imports with: the explicit repeat choice when given (possibly "" for "No name"),
+// otherwise the last row's.
+function resolveName(group, repeatChoices) {
+  if (repeatChoices && Object.prototype.hasOwnProperty.call(repeatChoices, group.phone)) {
+    const choice = str(repeatChoices[group.phone], 120);
+    if (!distinctNames(group).some((n) => n.name === choice)) {
+      throw new HttpError(400, "A repeated-number name choice does not match the file.", "BAD_REPEAT_CHOICE");
+    }
+    return choice;
+  }
+  return group.rows[group.rows.length - 1].name;
+}
+
+async function existingByPhone(db, id, phones) {
+  const map = new Map();
+  for (let i = 0; i < phones.length; i += 100) {
+    const chunk = phones.slice(i, i + 100);
+    const marks = chunk.map(() => "?").join(",");
+    const rows = await all(db, `SELECT phone_e164, name, suppressed FROM contacts WHERE account_id = ? AND phone_e164 IN (${marks})`, id, ...chunk);
+    for (const r of rows) map.set(r.phone_e164, r);
+  }
+  return map;
+}
+
+// Dry run of an import: lists the conflicts the user must resolve before importing, without changing anything.
+// A conflict is a saved contact whose name would change; a repeat is a number repeated in the file with different names.
+contacts.post("/import/check", async (c) => {
+  const body = await readJson(c);
+  const rows = Array.isArray(body.rows) ? body.rows : null;
+  if (!rows || rows.length === 0) return c.json({ error: "No rows to check." }, 400);
+  if (rows.length > MAX_IMPORT_ROWS) return c.json({ error: `Import at most ${MAX_IMPORT_ROWS} rows at a time.` }, 400);
+
+  const { invalid, groups } = parseImportRows(rows);
+  const existing = await existingByPhone(c.env.DB, accountId(c), groups.map((g) => g.phone));
+
+  const conflicts = [];
+  const repeats = [];
+  for (const g of groups) {
+    const names = distinctNames(g);
+    if (names.length > 1) repeats.push({ phone: g.phone, phoneDisplay: formatPhone(g.phone), names });
+    const saved = existing.get(g.phone);
+    if (saved) {
+      const incoming = names.map((n) => n.name).filter(Boolean);
+      const differing = incoming.filter((n) => n && n !== saved.name);
+      if (differing.length) {
+        conflicts.push({ phone: g.phone, phoneDisplay: formatPhone(g.phone), savedName: saved.name, incomingNames: differing, optedOut: Boolean(saved.suppressed) });
+      }
+    }
+  }
+  return c.json({ conflicts, repeats, invalidCount: invalid.length });
+});
+
+// Rows are parsed from CSV in the browser and sent as JSON: [{ phone, name }].
+// Existing contacts keep their suppression. resolutions[phone] = "update" applies the file's name,
+// "discard" keeps the saved contact exactly as it is; without a resolution a non-empty differing name updates the stored name.
+// repeatChoices[phone] picks which name a repeated number imports with; without a choice the last row wins.
 contacts.post("/import", async (c) => {
   const body = await readJson(c);
   const rows = Array.isArray(body.rows) ? body.rows : null;
   if (!rows || rows.length === 0) return c.json({ error: "No rows to import." }, 400);
   if (rows.length > MAX_IMPORT_ROWS) return c.json({ error: `Import at most ${MAX_IMPORT_ROWS} rows at a time.` }, 400);
 
+  const resolutions = body.resolutions && typeof body.resolutions === "object" ? body.resolutions : {};
+  const repeatChoices = body.repeatChoices && typeof body.repeatChoices === "object" ? body.repeatChoices : {};
+  for (const v of Object.values(resolutions)) {
+    if (v !== "update" && v !== "discard") return c.json({ error: 'Resolutions must be "update" or "discard".' }, 400);
+  }
+
   const id = accountId(c);
-  const invalid = [];
-  const seen = new Map();
-  rows.forEach((row, i) => {
-    try {
-      const phone = normalizePhone(row?.phone);
-      seen.set(phone, { phone, name: str(row?.name, 120), row: i + 1 });
-    } catch (e) {
-      invalid.push({ row: i + 1, phone: str(row?.phone, 40), error: e instanceof PhoneError ? e.message : "Invalid row." });
-    }
-  });
+  const { invalid, groups } = parseImportRows(rows);
+  const list = groups.map((g) => ({ phone: g.phone, name: resolveName(g, repeatChoices), row: g.rows[g.rows.length - 1].row }));
+  const existing = await existingByPhone(c.env.DB, id, list.map((r) => r.phone));
 
   let created = 0;
   let updated = 0;
   const ts = nowIso();
-  const list = [...seen.values()];
   for (let i = 0; i < list.length; i += 50) {
     const chunk = list.slice(i, i + 50);
     const stmts = [];
@@ -109,7 +193,8 @@ contacts.post("/import", async (c) => {
       stmts.push(c.env.DB.prepare(
         "INSERT INTO contacts (id, account_id, phone_e164, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(account_id, phone_e164) DO NOTHING",
       ).bind(newId("cnt"), id, r.phone, r.name, ts, ts));
-      if (r.name) {
+      const discarded = existing.has(r.phone) && resolutions[r.phone] === "discard";
+      if (r.name && !discarded) {
         stmts.push(c.env.DB.prepare(
           "UPDATE contacts SET name = ?, updated_at = ? WHERE account_id = ? AND phone_e164 = ? AND name <> ?",
         ).bind(r.name, ts, id, r.phone, r.name));
@@ -118,8 +203,9 @@ contacts.post("/import", async (c) => {
     const results = await c.env.DB.batch(stmts);
     let k = 0;
     for (const r of chunk) {
+      const discarded = existing.has(r.phone) && resolutions[r.phone] === "discard";
       const ins = results[k++]?.meta?.changes ?? 0;
-      const upd = r.name ? (results[k++]?.meta?.changes ?? 0) : 0;
+      const upd = r.name && !discarded ? (results[k++]?.meta?.changes ?? 0) : 0;
       if (ins) created++;
       else if (upd) updated++;
     }
