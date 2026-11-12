@@ -123,8 +123,12 @@ function ReviewStep({ campaign, template, onLaunched, onChanged }) {
       <div className="stats" style={{ marginBottom: 12 }}>
         <div className="stat"><b>{a?.sendable ?? 0}</b><span className="mut">will receive it</span></div>
         <div className="stat"><b>{a?.selected ?? 0}</b><span className="mut">selected</span></div>
-        <div className="stat"><b>{a?.suppressed ?? 0}</b><span className="mut">opted out, skipped</span></div>
       </div>
+      {(a?.suppressed ?? 0) > 0 && (
+        <div className="small mut" style={{ marginBottom: 12 }}>
+          {a.suppressed} selected {a.suppressed === 1 ? "contact has" : "contacts have"} opted out and won't receive it.
+        </div>
+      )}
       {template && (
         <div className="card">
           <div className="small mut" style={{ marginBottom: 8 }}>Message preview · {campaign.templateName} ({campaign.templateLanguage})</div>
