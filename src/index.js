@@ -9,6 +9,8 @@ import inbox from "./routes/inbox.js";
 import webhook from "./routes/webhook.js";
 import admin from "./routes/admin.js";
 import media from "./routes/media.js";
+import inboundMedia from "./routes/inbound-media.js";
+import { processInboundMedia, sweepInboundMedia } from "./lib/inbound-media.js";
 import { processRecipient, runScheduler, finalizeIfDone } from "./lib/campaigns.js";
 import { one } from "./lib/db.js";
 
@@ -30,6 +32,7 @@ app.use("/api/senders/*", requireAuth);
 app.use("/api/campaigns/*", requireAuth);
 app.use("/api/inbox/*", requireAuth);
 app.use("/api/media/*", requireAuth);
+app.use("/api/inbound-media/*", requireAuth);
 app.use("/api/admin/*", requireAuth, requireAdmin);
 for (const p of ["/api/contacts", "/api/templates", "/api/senders", "/api/campaigns", "/api/inbox", "/api/media"]) app.use(p, requireAuth);
 
@@ -40,6 +43,7 @@ app.route("/api/campaigns", campaigns);
 app.route("/api/inbox", inbox);
 app.route("/api/admin", admin);
 app.route("/api/media", media);
+app.route("/api/inbound-media", inboundMedia);
 
 app.all("/api/*", (c) => c.json({ error: "Not found." }, 404));
 app.all("*", (c) => (c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.text("Not found", 404)));
@@ -56,6 +60,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function queue(batch, env) {
   const touched = new Map();
   for (const msg of batch.messages) {
+    if (msg.body?.type === "inbound_media") {
+      // Background download of an incoming photo/voice note (no send involved).
+      try {
+        const res = await processInboundMedia(env, { id: msg.body.id, accountId: msg.body.accountId });
+        if (res === "retry") msg.retry({ delaySeconds: 30 });
+        else msg.ack();
+      } catch (err) {
+        console.error("[queue] inbound media error", err);
+        msg.ack(); // row stays in 'downloading'; the scheduler recovers it
+      }
+      continue;
+    }
     const { recipientId, accountId } = msg.body || {};
     if (!recipientId || !accountId) {
       msg.ack();
@@ -77,6 +93,7 @@ export async function queue(batch, env) {
 
 export async function scheduled(_event, env) {
   await runScheduler(env);
+  await sweepInboundMedia(env);
 }
 
 export default { fetch: app.fetch, queue, scheduled };

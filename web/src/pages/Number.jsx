@@ -73,7 +73,7 @@ function Activate({ sender, onDone }) {
     <div className="stack" style={{ marginTop: 12 }}>
       <ErrorBox error={action.error} />
       <div><button disabled={action.busy || !sender.testedAt} onClick={activate}>Activate this number</button></div>
-      <div className="mut small">Activating makes this the only number that sends for your account. The current number is kept but stops sending. Switching is refused while a campaign is scheduled or sending, or if draft campaigns use templates that are not approved in this number&apos;s Messaging account. Draft image campaigns need their image uploaded again on the new number.</div>
+      <div className="mut small">Activating makes this the only number that sends for your account. The current number is kept but stops sending. Switching is refused while a campaign is scheduled or sending, or if draft campaigns use templates that are not approved in this number&apos;s Messaging account. Saved images are uploaded to the new number automatically when a campaign starts; images uploaded before storage existed need uploading again.</div>
     </div>
   );
 }

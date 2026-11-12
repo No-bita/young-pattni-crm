@@ -4,7 +4,7 @@ import { accountId, readJson, str, intEnv } from "../lib/http.js";
 import { getActiveSender } from "../lib/send.js";
 import { isUsable, needsImage, presentTemplate, unsupportedReason, parseContent } from "../lib/templates.js";
 import { audienceSummary, launchBlockers, startCampaign, parseAudience, frozenShape, recordContentCheck } from "../lib/campaigns.js";
-import { getOwnedAsset, assetBlocker, presentAsset, latestStart } from "../lib/media.js";
+import { getOwnedAsset, assetBlocker, presentAsset, latestStart, isStored } from "../lib/media.js";
 import { formatPhone } from "../lib/phone.js";
 
 const campaigns = new Hono();
@@ -212,7 +212,7 @@ campaigns.get("/:id/preview", async (c) => {
   return c.json({
     audience: summary,
     blocker: check.error ? { code: check.code, message: check.error } : null,
-    latestStart: asset ? latestStart(asset).toISOString() : null, // media campaigns must start by this time
+    latestStart: asset && !isStored(asset) ? latestStart(asset).toISOString() : null, // Meta-only images must start by this time; stored images have no CRM-side limit
   });
 });
 

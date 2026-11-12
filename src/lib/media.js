@@ -3,7 +3,7 @@
 // Meta documents media ids as expiring after 30 days, so an asset is usable only until
 // expires_at minus a safety margin, and a campaign must be able to finish sending
 // (launch/schedule time + the queue bound) before that point.
-import { one } from "./db.js";
+import { all, one } from "./db.js";
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;           // Meta: images up to 5 MB
 export const MAX_UPLOAD_REQUEST_BYTES = MAX_IMAGE_BYTES + 64 * 1024; // whole upload request: file + form overhead (approved)
@@ -105,10 +105,18 @@ export async function getOwnedAsset(db, accountId, assetId) {
   return one(db, "SELECT * FROM media_assets WHERE id = ? AND account_id = ?", String(assetId), accountId);
 }
 
+// Stored assets (policy B, 12 Nov 2026) keep the original file in private R2, so the CRM can upload it
+// to Meta again for any of the account's numbers. Assets without a stored copy keep the 30-day rules.
+export function isStored(asset) {
+  return Boolean(asset?.r2_key);
+}
+
 // Why this asset cannot carry a send that must complete by `mustLastUntil`, or null.
+// For stored assets, Meta-side freshness is handled at campaign start by resolveMetaUpload().
 export function assetBlocker(asset, { senderId, mustLastUntil }) {
   if (!asset) return { code: "MEDIA_MISSING", error: "This template needs an image. Upload one first." };
   if (asset.kind !== "image") return { code: "MEDIA_WRONG_TYPE", error: "This template needs an image header." };
+  if (isStored(asset)) return null;
   if (asset.sender_id !== senderId) {
     return { code: "MEDIA_WRONG_SENDER", error: "The image was uploaded through a different WhatsApp number. Upload it again on the active number." };
   }
@@ -121,9 +129,47 @@ export function assetBlocker(asset, { senderId, mustLastUntil }) {
   return null;
 }
 
+export function uploadUsableUntil(upload) {
+  return new Date(Date.parse(upload.expires_at) - SAFETY_MARGIN_MS);
+}
+
+// Returns a Meta upload of this asset, made through `sender`, that stays usable until mustLastUntil.
+// Reuses an existing one, or (stored assets only) uploads the kept original again.
+// Returns { upload } or { error, code }.
+export async function resolveMetaUpload(env, asset, sender, mustLastUntil, uploadFn) {
+  const rows = await all(
+    env.DB,
+    "SELECT * FROM media_meta_uploads WHERE account_id = ? AND asset_id = ? AND sender_id = ? ORDER BY expires_at DESC LIMIT 5",
+    asset.account_id, asset.id, sender.id,
+  );
+  const ok = rows.find((u) => uploadUsableUntil(u).getTime() >= mustLastUntil.getTime());
+  if (ok) return { upload: ok, reused: true };
+  if (!isStored(asset)) {
+    return assetBlocker(asset, { senderId: sender.id, mustLastUntil }) || { code: "MEDIA_EXPIRED", error: "The image needs uploading again." };
+  }
+  if (!env.MEDIA_BUCKET) return { code: "MEDIA_STORAGE_MISSING", error: "Media storage (MEDIA_BUCKET) is not set up, so the saved image can't be uploaded to Meta again." };
+  const obj = await env.MEDIA_BUCKET.get(asset.r2_key);
+  if (!obj) return { code: "MEDIA_STORAGE_MISSING", error: "The saved copy of this image is missing from storage. Upload it again." };
+  const bytes = new Uint8Array(await obj.arrayBuffer());
+  let mediaId;
+  try {
+    mediaId = await uploadFn(env, sender, { bytes, mimeType: asset.mime_type, filename: asset.original_name || "image" });
+  } catch (e) {
+    return { code: "MEDIA_REUPLOAD_FAILED", error: `Meta did not accept the saved image when uploading it again: ${e?.message || "error"}` };
+  }
+  const now = new Date();
+  const id = `mmu_${crypto.randomUUID().replace(/-/g, "")}`;
+  await env.DB.prepare(
+    "INSERT INTO media_meta_uploads (id, account_id, asset_id, sender_id, meta_media_id, uploaded_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  ).bind(id, asset.account_id, asset.id, sender.id, mediaId, now.toISOString(), new Date(now.getTime() + MEDIA_ID_LIFETIME_MS).toISOString()).run();
+  return { upload: await one(env.DB, "SELECT * FROM media_meta_uploads WHERE id = ? AND account_id = ?", id, asset.account_id), reused: false };
+}
+
 export function presentAsset(a, senderNumber = null) {
   if (!a) return null;
+  const stored = isStored(a);
   return {
+    stored,
     id: a.id,
     kind: a.kind,
     mimeType: a.mime_type,
@@ -135,8 +181,9 @@ export function presentAsset(a, senderNumber = null) {
     senderNumber,
     uploadedAt: a.uploaded_at,
     expiresAt: a.expires_at,
-    usableUntil: usableUntil(a).toISOString(),
-    latestStart: latestStart(a).toISOString(),
+    // Stored images have no CRM-side expiry: they are uploaded to Meta again when needed.
+    usableUntil: stored ? null : usableUntil(a).toISOString(),
+    latestStart: stored ? null : latestStart(a).toISOString(),
     previewUrl: `/api/media/${a.id}/preview`,
   };
 }

@@ -141,7 +141,9 @@ function ReviewStep({ campaign, template, onLaunched, onChanged }) {
           </div>
           {campaign.media && (
             <div className="small mut" style={{ marginTop: 8 }}>
-              Image uploaded through {campaign.media.senderNumber || "a WhatsApp number"} · must start by {fmtDate(latestStart || campaign.media.latestStart)}
+              {campaign.media.stored
+                ? "Image saved in the CRM · uploaded to Meta again automatically if needed when the campaign starts"
+                : `Image uploaded through ${campaign.media.senderNumber || "a WhatsApp number"} · must start by ${fmtDate(latestStart || campaign.media.latestStart)}`}
             </div>
           )}
         </div>

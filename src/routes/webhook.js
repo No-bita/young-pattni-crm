@@ -6,6 +6,7 @@ import { one, run, newId, nowIso } from "../lib/db.js";
 import { isValidSignature } from "../whatsapp/signature.js";
 import { parseWebhook } from "../whatsapp/parse.js";
 import { timingSafeEqualStr } from "../lib/password.js";
+import { recordInboundMedia } from "../lib/inbound-media.js";
 
 const webhook = new Hono();
 
@@ -59,17 +60,20 @@ async function contactFor(db, accountId, phone, name = "") {
   return one(db, "SELECT * FROM contacts WHERE account_id = ? AND phone_e164 = ?", accountId, phone);
 }
 
-async function applyInbound(db, sender, ev) {
+async function applyInbound(env, sender, ev) {
+  const db = env.DB;
   if (!/^\d{8,15}$/.test(ev.from)) return;
   const contact = await contactFor(db, sender.account_id, ev.from, ev.profileName);
   const at = ev.timestamp || nowIso();
+  const messageId = newId("msg");
   const inserted = await run(
     db,
     `INSERT INTO messages (id, account_id, contact_id, sender_id, direction, kind, body, wamid, status, created_at, updated_at)
      VALUES (?, ?, ?, ?, 'inbound', 'inbound', ?, ?, 'received', ?, ?) ON CONFLICT(sender_id, wamid) WHERE wamid IS NOT NULL DO NOTHING`,
-    newId("msg"), sender.account_id, contact.id, sender.id, ev.text, ev.wamid, at, nowIso(),
+    messageId, sender.account_id, contact.id, sender.id, ev.text, ev.wamid, at, nowIso(),
   );
   if (!inserted) return; // duplicate delivery from Meta's retries
+  if (ev.media) await recordInboundMedia(env, sender, messageId, ev.media, at);
   await run(
     db,
     `UPDATE contacts SET last_inbound_at = MAX(COALESCE(last_inbound_at, ''), ?), last_message_at = MAX(COALESCE(last_message_at, ''), ?),
@@ -118,7 +122,7 @@ webhook.post("/", async (c) => {
   // A thrown error returns 500, so Meta retries; every write above is idempotent.
   for (const ev of events.messages) {
     const s = await route(ev);
-    if (s) await applyInbound(db, s, ev);
+    if (s) await applyInbound(c.env, s, ev);
   }
   for (const ev of events.statuses) {
     const s = await route(ev);

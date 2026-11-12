@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, fmtDate } from "../api.js";
 import { Ava, Empty, ErrorBox, Loading, Pill, Strip, useAction, useApi } from "../components/ui.jsx";
-import { PreviewImage } from "../components/media.jsx";
+import { PreviewImage, InboundMedia, isPlaceholder } from "../components/media.jsx";
 
 function dayLabel(ts) {
   const d = new Date(ts);
@@ -67,9 +67,12 @@ function Thread({ contactId, onSent }) {
             return (
               <div key={m.id} style={{ display: "contents" }}>
                 {sep}
-                <div className={`bub ${m.direction === "inbound" ? "in" : "out"}${m.media ? " media-bub" : ""}`}>
+                <div className={`bub ${m.direction === "inbound" ? "in" : "out"}${m.media || m.inboundMedia ? " media-bub" : ""}`}>
                   {m.media && <PreviewImage key={m.media.previewUrl} src={m.media.previewUrl} />}
-                  {m.media ? <div className="bub-text">{m.body}</div> : m.body}
+                  {m.inboundMedia && <InboundMedia key={m.inboundMedia.id} media={m.inboundMedia} />}
+                  {m.media || m.inboundMedia
+                    ? (!isPlaceholder(m.body) && <div className="bub-text">{m.body}</div>)
+                    : m.body}
                   <div className="bmeta">
                     {m.direction === "outbound" && m.templateName && <span className="mono">{m.templateName} · </span>}
                     <span>{fmtDate(m.createdAt)}</span>
