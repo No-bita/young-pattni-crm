@@ -12,6 +12,7 @@
   --mut: #6E6A62;
   --faint: #A39E93;
   --grn-b: #E6F4ED; --grn: #1C8C5E;
+  --blu-b: #E0F0FA; --blu: #1776AE;
   --amb-b: #FEF3C7; --amb: #B06F12;
   --red-b: #FEE2E2; --red: #C7392A;
   --wa-bg: #ECE5DD; --wa-out: #D9FDD3; --wa-tick: #53BDEB;
@@ -87,6 +88,7 @@ label.field > span { font-size: 13px; }
 .pill.warn { background: var(--amb-b); color: var(--amb); }
 .pill.bad { background: var(--red-b); color: var(--red); }
 .pill.neutral { background: var(--soft); color: var(--mut); }
+.pill.info { background: var(--blu-b); color: var(--blu); }
 
 /* Alerts */
 .alert { border-radius: var(--r-md); padding: 12px 14px; margin-bottom: 12px; border: 1px solid; font-size: 14px; }
@@ -102,7 +104,9 @@ label.field > span { font-size: 13px; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
 .stat { background: var(--soft); border-radius: var(--r-md); padding: 10px 12px; text-align: center; }
 .stat b { display: block; font-family: var(--font-head); font-size: 22px; font-weight: 700; }
-.stat b.bad { color: var(--red); }
+.stat.g { background: var(--grn-b); } .stat.g b { color: var(--grn); }
+.stat.b { background: var(--blu-b); } .stat.b b { color: var(--blu); }
+.stat.r { background: var(--red-b); } .stat.r b { color: var(--red); }
 .stat span { font-size: 12px; }
 
 /* Steps */

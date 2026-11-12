@@ -199,9 +199,9 @@ function Progress({ campaign, reload }) {
     reload();
   });
 
-  const stats = [["sent", (r.sent || 0) + (r.delivered || 0) + (r.read || 0)], ["delivered", (r.delivered || 0) + (r.read || 0)], ["read", r.read || 0], ["failed", r.failed || 0], ["opted out, skipped", r.skipped_suppressed || 0]];
-  if (r.queued || r.sending) stats.unshift(["queued", (r.queued || 0) + (r.sending || 0)]);
-  if (r.cancelled) stats.push(["cancelled", r.cancelled]);
+  const stats = [["sent", (r.sent || 0) + (r.delivered || 0) + (r.read || 0), ""], ["delivered", (r.delivered || 0) + (r.read || 0), "g"], ["read", r.read || 0, "b"], ["failed", r.failed || 0, r.failed ? "r" : ""]];
+  if (r.queued || r.sending) stats.unshift(["queued", (r.queued || 0) + (r.sending || 0), ""]);
+  if (r.cancelled) stats.push(["cancelled", r.cancelled, ""]);
   return (
     <>
       <ErrorBox error={action.error} />
@@ -239,7 +239,7 @@ function Progress({ campaign, reload }) {
           )}
         </div>
         {campaign.status !== "scheduled" && (
-          <div className="stats">{stats.map(([k, v]) => <div className="stat" key={k}><b className={k === "failed" && v ? "bad" : ""}>{v}</b><span className="mut">{k}</span></div>)}</div>
+          <div className="stats">{stats.map(([k, v, cls]) => <div className={cls ? `stat ${cls}` : "stat"} key={k}><b>{v}</b><span className="mut">{k}</span></div>)}</div>
         )}
       </div>
       {campaign.status !== "scheduled" && (

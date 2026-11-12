@@ -38,7 +38,7 @@ export function fmtDate(iso) {
 }
 
 const STATUS = {
-  sent: ["Sent", ""], delivered: ["Delivered", "ok"], read: ["Read", "ok"], failed: ["Failed", "bad"],
+  sent: ["Sent", ""], delivered: ["Delivered", "ok"], read: ["Read", "info"], failed: ["Failed", "bad"],
   sending: ["Sending", "warn"], queued: ["Queued", "neutral"], pending: ["Pending", "neutral"], received: ["Received", "neutral"],
   skipped_suppressed: ["Skipped: opted out", "neutral"], cancelled: ["Cancelled", "neutral"],
   draft: ["Draft", "neutral"], scheduled: ["Scheduled", "warn"], completed: ["Completed", "ok"],
