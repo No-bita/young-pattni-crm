@@ -9,8 +9,28 @@ function inboundText(m) {
   if (m.type === "interactive") {
     return m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? "[interactive]";
   }
-  if (m.caption) return m.caption;
+  // Media captions live inside the media object (e.g. message.image.caption), not on the message.
+  if (m.type === "image") return m.image?.caption || "[image]";
+  if (m.type === "audio") return m.audio?.voice ? "[voice note]" : "[audio]";
+  const media = m.type && m[m.type];
+  if (media && typeof media === "object" && media.caption) return media.caption;
   return `[${m.type || "message"}]`;
+}
+
+// Image and audio references from the webhook. `url` is deliberately ignored: Meta marks it as a
+// gradual-rollout field and download links expire after 5 minutes; the media id is what's kept.
+// Source: developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/image (and /audio)
+function inboundMedia(m) {
+  if (m.type !== "image" && m.type !== "audio") return null;
+  const o = m[m.type];
+  if (!o?.id) return null;
+  return {
+    kind: m.type,
+    metaMediaId: String(o.id),
+    mimeType: o.mime_type ? String(o.mime_type).slice(0, 100) : null,
+    sha256: o.sha256 ? String(o.sha256).slice(0, 200) : null,
+    voice: m.type === "audio" && o.voice === true,
+  };
 }
 
 export function parseWebhook(body) {
@@ -49,6 +69,7 @@ export function parseWebhook(body) {
           from: String(m.from).replace(/\D/g, ""),
           profileName: names.get(String(m.from)) || "",
           text: inboundText(m),
+          media: inboundMedia(m),
           timestamp: m.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : null,
         });
       }

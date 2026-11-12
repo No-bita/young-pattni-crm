@@ -30,6 +30,12 @@ database_name = "young_pattni_crm"
 database_id = "a3d8e74e-83ea-45b1-854c-bf8133b23596"
 migrations_dir = "migrations"
 
+# Private R2 bucket for incoming photos/voice notes and stored header images.
+# Create it in the Springboard Cloudflare account (no public access, no custom domain), then fill the name.
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "replace-me-media-bucket"   # placeholder: create the private bucket, then put its real name here
+
 [[queues.producers]]
 binding = "CAMPAIGN_QUEUE"
 queue = "springboard-test-send-queue"
@@ -40,6 +46,7 @@ max_batch_size = 10
 max_batch_timeout = 1
 max_concurrency = 1
 max_retries = 3
+# The same queue also carries background downloads of incoming media ({ type: "inbound_media" }).
 
 [triggers]
 crons = ["* * * * *"]            # launches scheduled campaigns when they fall due

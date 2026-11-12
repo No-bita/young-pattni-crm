@@ -1,7 +1,7 @@
 // Authenticated image upload for image-header templates. The browser never sees Meta's media id,
 // the access token, or Meta's temporary download URL.
 import { Hono } from "hono";
-import { one, run, newId, nowIso } from "../lib/db.js";
+import { all, one, newId, nowIso } from "../lib/db.js";
 import { accountId } from "../lib/http.js";
 import { readBodyLimited, BodyError } from "../lib/body.js";
 import { getActiveSender } from "../lib/send.js";
@@ -77,15 +77,36 @@ media.post("/", async (c) => {
 
   const id = newId("med");
   const uploadedAt = new Date();
-  await run(
-    c.env.DB,
-    `INSERT INTO media_assets (id, account_id, sender_id, kind, mime_type, byte_size, sha256, width, height, original_name, meta_media_id, uploaded_at, expires_at, created_at)
-     VALUES (?, ?, ?, 'image', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, sender.account_id, sender.id, info.mimeType, bytes.length, await sha256Hex(bytes), info.width, info.height,
-    cleanName(file.name), mediaId, uploadedAt.toISOString(), new Date(uploadedAt.getTime() + MEDIA_ID_LIFETIME_MS).toISOString(), nowIso(),
-  );
+  const expiresAt = new Date(uploadedAt.getTime() + MEDIA_ID_LIFETIME_MS).toISOString();
+  // Keep the original privately so it can be uploaded to Meta again later (policy B).
+  // Without MEDIA_BUCKET configured, the image is Meta-only and keeps the 30-day rules.
+  let r2Key = null;
+  if (c.env.MEDIA_BUCKET) {
+    r2Key = `assets/${sender.account_id}/${id}`;
+    try {
+      await c.env.MEDIA_BUCKET.put(r2Key, bytes, { httpMetadata: { contentType: info.mimeType } });
+    } catch {
+      return c.json({ error: "The image reached Meta but could not be saved in the CRM's storage. Try again.", code: "STORAGE_FAILED" }, 502);
+    }
+  }
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO media_assets (id, account_id, sender_id, kind, mime_type, byte_size, sha256, width, height, original_name, meta_media_id, uploaded_at, expires_at, created_at, r2_key)
+       VALUES (?, ?, ?, 'image', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, sender.account_id, sender.id, info.mimeType, bytes.length, await sha256Hex(bytes), info.width, info.height,
+      cleanName(file.name), mediaId, uploadedAt.toISOString(), expiresAt, nowIso(), r2Key),
+    c.env.DB.prepare(
+      "INSERT INTO media_meta_uploads (id, account_id, asset_id, sender_id, meta_media_id, uploaded_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).bind(newId("mmu"), sender.account_id, id, sender.id, mediaId, uploadedAt.toISOString(), expiresAt),
+  ]);
   const asset = await getOwnedAsset(c.env.DB, sender.account_id, id);
   return c.json({ asset: presentAsset(asset, sender.display_number) }, 201);
+});
+
+// Saved images of this account (stored copies only), newest first, for reuse across campaigns.
+media.get("/", async (c) => {
+  const rows = await all(c.env.DB, "SELECT * FROM media_assets WHERE account_id = ? AND r2_key IS NOT NULL ORDER BY created_at DESC LIMIT 50", accountId(c));
+  return c.json({ assets: rows.map((a) => presentAsset(a)) });
 });
 
 media.get("/:id", async (c) => {
@@ -95,12 +116,17 @@ media.get("/:id", async (c) => {
   return c.json({ asset: presentAsset(asset, sender?.display_number) });
 });
 
-// Preview for the signed-in account's own image. The Worker fetches it from Meta (no redirects,
-// 10-second deadline, 5 MB cap), holds it in memory for this one response, then returns it.
-// It is buffered, not streamed, and nothing is stored or cached server-side.
+// Preview for the signed-in account's own image.
+// Stored images stream from private R2. Meta-only images (uploaded before storage existed): the Worker
+// fetches from Meta (no redirects, 10-second deadline, 5 MB cap) and buffers it for this one response.
 media.get("/:id/preview", async (c) => {
   const asset = await getOwnedAsset(c.env.DB, accountId(c), c.req.param("id"));
   if (!asset) return c.json({ error: "Image not found." }, 404);
+  const previewHeaders = { "Content-Type": asset.mime_type, "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline" };
+  if (asset.r2_key && c.env.MEDIA_BUCKET) {
+    const obj = await c.env.MEDIA_BUCKET.get(asset.r2_key);
+    if (obj) return new Response(obj.body, { headers: previewHeaders });
+  }
   if (Date.now() >= Date.parse(asset.expires_at)) return c.json({ error: "Meta no longer keeps this image (30 days passed).", code: "MEDIA_EXPIRED" }, 410);
   const sender = await one(c.env.DB, "SELECT * FROM senders WHERE id = ? AND account_id = ?", asset.sender_id, asset.account_id);
   if (!sender) return c.json({ error: "Image not found." }, 404);

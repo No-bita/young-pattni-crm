@@ -65,3 +65,14 @@ This file goes with every handover. An item leaves it only after it has been che
 | F4 | Real Meta behaviour for redirects, download sizes and timeouts on media downloads. Only fake responses were used. | VERIFY-LIVE |
 | F5 | Whether the blocked text-template features would actually have failed on `main`. This is inferred from Meta's docs and wasn't tested live. | VERIFY-LIVE |
 | F6 | No live template response, media upload or send has been demonstrated in any delivery so far. | OPEN |
+
+## G. Incoming media and saved images (12 Nov 2026)
+
+| # | Item | Status |
+|---|---|---|
+| G1 | The format of Meta's webhook `sha256` (hex or base64) isn't specified. Both are compared, and a mismatch is recorded but doesn't block storing. | VERIFY-LIVE |
+| G2 | Real incoming downloads, R2 behaviour and audio playback on real devices. Only fakes were used, and the synthetic audio in the screenshots doesn't actually play. | VERIFY-LIVE |
+| G3 | Whether older iPhones play OGG/Opus voice notes. A Download link is always shown as a fallback. | VERIFY-LIVE |
+| G4 | Storage growth and cost with "keep forever". Current R2 pricing wasn't checked. | OPEN |
+| G5 | Reusing your approval image (`header_handle`). Not built; waits on the diagnostic. | OPEN |
+| G6 | `MEDIA_BUCKET` must be created and named in `wrangler.toml` before deploying. A deploy with the placeholder will fail. | YOUR STEP |

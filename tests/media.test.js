@@ -52,6 +52,8 @@ const sends = () => graph.sent.map((s) => s.body);
 const ageAsset = (id, uploadedDaysAgo) => {
   const up = new Date(Date.now() - uploadedDaysAgo * 86400e3);
   env.DB.raw.prepare("UPDATE media_assets SET uploaded_at = ?, expires_at = ? WHERE id = ?").run(up.toISOString(), new Date(up.getTime() + 30 * 86400e3).toISOString(), id);
+  // Since migration 0004, each Meta upload has its own record; the asset's first upload ages with it.
+  env.DB.raw.prepare("UPDATE media_meta_uploads SET uploaded_at = ?, expires_at = ? WHERE asset_id = ?").run(up.toISOString(), new Date(up.getTime() + 30 * 86400e3).toISOString(), id);
 };
 
 // ---------- template shape ----------

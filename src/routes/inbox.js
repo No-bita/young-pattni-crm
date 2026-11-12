@@ -1,3 +1,4 @@
+import { presentInboundMedia } from "../lib/inbound-media.js";
 import { Hono } from "hono";
 import { all, one } from "../lib/db.js";
 import { accountId, readJson } from "../lib/http.js";
@@ -30,7 +31,11 @@ inbox.get("/:contactId", async (c) => {
   if (!contact) return c.json({ error: "Contact not found." }, 404);
   const msgs = await all(
     c.env.DB,
-    `SELECT m.*, s.display_number FROM messages m JOIN senders s ON s.id = m.sender_id AND s.account_id = m.account_id
+    `SELECT m.*, s.display_number,
+            im.id AS im_id, im.kind AS im_kind, im.voice AS im_voice, im.status AS im_status, im.stored_mime_type AS im_mime,
+            im.byte_size AS im_size, im.error AS im_error
+       FROM messages m JOIN senders s ON s.id = m.sender_id AND s.account_id = m.account_id
+       LEFT JOIN inbound_media im ON im.message_id = m.id AND im.account_id = m.account_id
       WHERE m.account_id = ? AND m.contact_id = ? ORDER BY m.created_at ASC LIMIT 500`,
     accountId(c), contact.id,
   );
@@ -45,6 +50,9 @@ inbox.get("/:contactId", async (c) => {
       id: m.id, direction: m.direction, kind: m.kind, body: m.body, templateName: m.template_name,
       status: m.status, error: m.error, createdAt: m.created_at, senderNumber: m.display_number,
       media: m.media_asset_id ? { id: m.media_asset_id, kind: "image", previewUrl: `/api/media/${m.media_asset_id}/preview` } : null,
+      inboundMedia: m.im_id ? presentInboundMedia({
+        id: m.im_id, kind: m.im_kind, voice: m.im_voice, status: m.im_status, stored_mime_type: m.im_mime, byte_size: m.im_size, error: m.im_error,
+      }) : null,
       replied: m.direction === "outbound" && m.status !== "failed" && Boolean(lastInbound && lastInbound > m.created_at),
     })),
   });

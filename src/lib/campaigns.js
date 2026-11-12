@@ -3,9 +3,9 @@
 import { all, one, run, newId, nowIso } from "./db.js";
 import { getActiveSender, sendToContact } from "./send.js";
 import { isUsable, needsImage, lookupTemplate, parseContent } from "./templates.js";
-import { contentDifferences } from "../whatsapp/graph.js";
+import { contentDifferences, uploadMedia } from "../whatsapp/graph.js";
 import { intEnv } from "./http.js";
-import { getOwnedAsset, assetBlocker, usableUntil, fmtUtc, QUEUE_BOUND_MS } from "./media.js";
+import { getOwnedAsset, assetBlocker, usableUntil, fmtUtc, QUEUE_BOUND_MS, resolveMetaUpload, uploadUsableUntil, isStored } from "./media.js";
 
 export const FRESHNESS_TIMEOUT_MS = 5 * 1000; // approved: how long to wait for Meta before using the local copy
 
@@ -135,9 +135,11 @@ export async function launchBlockers(env, campaign, { startAt = new Date(), fres
 
 // The point after which queued recipients are no longer sent: start + queue bound, and never
 // later than the image's usable-until time. Reaching it does not mean everyone was sent to.
-export async function sendDeadline(env, campaign, tpl, start) {
+export async function sendDeadline(env, campaign, tpl, start, upload = null) {
   let deadline = start.getTime() + QUEUE_BOUND_MS;
-  if (needsImage(tpl)) {
+  if (upload) {
+    deadline = Math.min(deadline, uploadUsableUntil(upload).getTime());
+  } else if (needsImage(tpl)) {
     const asset = await getOwnedAsset(env.DB, campaign.account_id, campaign.media_asset_id);
     if (asset) deadline = Math.min(deadline, usableUntil(asset).getTime());
   }
@@ -153,17 +155,26 @@ export async function startCampaign(env, campaign) {
   const { sender, tpl } = check;
   const ts = start.toISOString();
   const shape = frozenShape(tpl);
-  const deadline = await sendDeadline(env, campaign, tpl, start);
+  // Image campaigns: pick (or create, for stored images) a Meta upload through THIS number that stays
+  // usable for the whole sending window. Stored images are uploaded to Meta again here if needed.
+  let upload = null;
+  if (needsImage(tpl)) {
+    const asset = await getOwnedAsset(env.DB, campaign.account_id, campaign.media_asset_id);
+    const res = asset ? await resolveMetaUpload(env, asset, sender, new Date(start.getTime() + QUEUE_BOUND_MS), uploadMedia) : { code: "MEDIA_MISSING", error: "This template needs an image." };
+    if (res.error) return { error: res.error, code: res.code };
+    upload = res.upload;
+  }
+  const deadline = await sendDeadline(env, campaign, tpl, start, upload);
 
   // Freezes the content (kept from scheduling time when already frozen) and pins the sender.
   const claimed = await run(
     env.DB,
-    `UPDATE campaigns SET status = 'sending', sender_id = ?, launched_at = ?, updated_at = ?, error = NULL, send_deadline = ?,
+    `UPDATE campaigns SET status = 'sending', sender_id = ?, launched_at = ?, updated_at = ?, error = NULL, send_deadline = ?, meta_upload_id = ?,
             frozen_header_format = COALESCE(frozen_header_format, ?), frozen_body_text = COALESCE(frozen_body_text, ?),
             frozen_body_param_count = COALESCE(frozen_body_param_count, ?)
       WHERE id = ? AND account_id = ? AND status IN ('draft', 'scheduled')
         AND EXISTS (SELECT 1 FROM senders WHERE id = ? AND account_id = ? AND status = 'active')`,
-    sender.id, ts, ts, deadline, shape.header, shape.body, shape.params, campaign.id, campaign.account_id, sender.id, campaign.account_id,
+    sender.id, ts, ts, deadline, upload?.id ?? null, shape.header, shape.body, shape.params, campaign.id, campaign.account_id, sender.id, campaign.account_id,
   );
   if (!claimed) return { error: "This campaign was already launched or cancelled.", code: "NOT_LAUNCHABLE" };
 
@@ -220,9 +231,21 @@ export async function processRecipient(env, { recipientId, accountId }) {
   }
   let headerImageId = null;
   let mediaAssetId = null;
-  if (needsImage(tpl)) {
+  if (needsImage(tpl) && campaign.meta_upload_id) {
+    // The Meta upload chosen at start: must be this campaign's number and still within its usable time.
+    const up = await one(db, "SELECT * FROM media_meta_uploads WHERE id = ? AND account_id = ? AND asset_id = ?", campaign.meta_upload_id, accountId, campaign.media_asset_id);
+    if (!up || up.sender_id !== campaign.sender_id || Date.now() > uploadUsableUntil(up).getTime()) {
+      await settle("failed", up ? `The image upload can be used only until ${fmtUtc(uploadUsableUntil(up))}.` : "The image upload for this campaign is missing.");
+      return "failed";
+    }
+    headerImageId = up.meta_media_id;
+    mediaAssetId = campaign.media_asset_id;
+  } else if (needsImage(tpl)) {
+    // Campaigns started before upload records existed.
     const asset = await getOwnedAsset(db, accountId, campaign.media_asset_id);
-    const blocked = assetBlocker(asset, { senderId: campaign.sender_id, mustLastUntil: new Date() });
+    const blocked = asset && isStored(asset)
+      ? assetBlocker({ ...asset, r2_key: null }, { senderId: campaign.sender_id, mustLastUntil: new Date() }) // check the original Meta upload
+      : assetBlocker(asset, { senderId: campaign.sender_id, mustLastUntil: new Date() });
     if (blocked) {
       await settle("failed", blocked.error);
       return "failed";

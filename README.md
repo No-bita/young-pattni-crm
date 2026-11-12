@@ -177,3 +177,32 @@ If an approved template doesn't appear in the list, open New campaign, choose **
 - **Matching:** only an exact name and language match counts, so near-matches from Meta's filter are ignored.
 - **When it's found:** the template is saved like a synced one, and other templates are left untouched. If it can be used, it's selected. If not, the reason is shown.
 - **Same checks as synced templates:** typed-in templates go through the same checks at launch and send: approval, supported shape, the image rules, and frozen content. Nothing is sent without that check.
+
+
+## Incoming photos and voice notes (stored privately)
+
+When a contact sends a photo or audio, the Inbox now shows it.
+
+- **Captions:** read from where Meta puts them (`message.image.caption`). Before this fix, image captions were lost.
+- **What's kept from the webhook:** Meta's media id, file type, checksum and the voice-note flag. The webhook's `url` field is ignored: Meta lists it as a gradual-rollout field, and its links expire after 5 minutes.
+- **Downloading:** the webhook only records the message and queues a download, so it answers Meta quickly. A background job (same queue, `type: "inbound_media"`) then:
+  - downloads the file through the receiving number's token (no redirects, 20-second deadline, 5 MB cap for images and 16 MB for audio);
+  - checks the real format from the bytes: JPEG or PNG for images; OGG, AMR, MP4/M4A, MP3 or AAC for audio;
+  - stores it in the private R2 bucket (`MEDIA_BUCKET`) under the account's own prefix.
+- **Retries and limits:** a temporary failure is retried up to 3 times. The scheduler re-queues lost downloads, recovers stuck ones, and marks anything older than Meta's documented 7-day window as unavailable.
+- **Viewing:** `GET /api/inbound-media/:id` serves only the signed-in account's own files, streamed from R2. It supports byte ranges, so audio can seek and play on iPhones.
+- **Not stored:** video, documents and stickers (their captions still show).
+- **Retention:** nothing is deleted automatically (your decision, 12 Nov 2026).
+
+## Saved header images (policy B)
+
+With `MEDIA_BUCKET` set up, an uploaded header image is also kept privately in R2.
+
+- **Reuse:** you can pick it again for any campaign ("Or use a saved image"), without uploading again.
+- **When a campaign starts,** the CRM picks a Meta upload of that image, made through the campaign's number, that will stay usable for the whole sending window.
+  - If the existing upload is too old (30 days minus a 2-day margin), or the number has changed, it uploads the saved original to Meta again automatically.
+  - If that re-upload fails, the campaign isn't sent and the reason is shown.
+- **Scheduling:** image campaigns with a saved image can be scheduled up to 90 days ahead, like text campaigns.
+- **Image previews** stream from R2, so they keep working after 30 days.
+- **Not saved:** images uploaded before storage existed, or while `MEDIA_BUCKET` is missing, stay Meta-only and keep the earlier rules (latest start = upload + 27 days 23 hours).
+- **Your approval image:** reusing the image you gave Meta at template approval is not built. It waits on the read-only diagnostic.
