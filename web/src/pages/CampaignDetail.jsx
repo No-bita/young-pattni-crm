@@ -3,6 +3,7 @@ import { api, fmtDate, go } from "../api.js";
 import { Ava, Empty, ErrorBox, Loading, Pill, Strip, useAction, useApi } from "../components/ui.jsx";
 import { previewBody } from "./CampaignNew.jsx";
 import { ImageUpload, MessageBubble } from "../components/media.jsx";
+import { campaignSummary } from "../campaign-summary.js";
 
 const TONE = { completed: "g", sending: "a", scheduled: "a", draft: "n", cancelled: "n" };
 const LABEL = { completed: "Completed", sending: "Sending", scheduled: "Scheduled", draft: "Draft", cancelled: "Cancelled" };
@@ -204,9 +205,8 @@ function Progress({ campaign, reload }) {
     reload();
   });
 
-  const stats = [["sent", (r.sent || 0) + (r.delivered || 0) + (r.read || 0), ""], ["delivered", (r.delivered || 0) + (r.read || 0), "g"], ["read", r.read || 0, "b"], ["failed", r.failed || 0, r.failed ? "r" : ""]];
-  if (r.queued || r.sending) stats.unshift(["queued", (r.queued || 0) + (r.sending || 0), ""]);
-  if (r.cancelled) stats.push(["cancelled", r.cancelled, ""]);
+  const summary = campaignSummary(r);
+  const stats = [["Sent", summary.total, ""], ["Delivered", summary.delivered, "b"], ["Read", summary.read, "g"], ["Failed", summary.failed, summary.failed ? "r" : ""]];
   return (
     <>
       <ErrorBox error={action.error} />
@@ -238,7 +238,10 @@ function Progress({ campaign, reload }) {
           )}
         </div>
         {campaign.status !== "scheduled" && (
-          <div className="stats">{stats.map(([k, v, cls]) => <div className={cls ? `stat ${cls}` : "stat"} key={k}><b>{v}</b><span className="mut">{k}</span></div>)}</div>
+          <>
+            <div className="stats campaign-stats">{stats.map(([k, v, cls]) => <div className={cls ? `stat ${cls}` : "stat"} key={k}><b>{v}</b><span className="mut">{k}</span></div>)}</div>
+            {summary.awaiting > 0 && <div className="small mut">{summary.awaiting} awaiting a result. Outcome counts may be below Sent until results arrive.</div>}
+          </>
         )}
       </div>
       <details className="card small mut">
