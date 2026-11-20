@@ -77,14 +77,23 @@ export function PreviewImage({ src, alt = "Header image", missingText = "Image r
 }
 
 // Previously saved images of this account, to reuse without uploading again.
-function SavedImages({ currentId, onPick }) {
+function SavedImages({ currentId, onPick, onAutoPick, show = true }) {
+  const pickRef = useRef(onPick);
+  pickRef.current = onAutoPick || onPick;
+  const attempted = useRef(null);
   const [list, setList] = useState(null);
   useEffect(() => {
     let live = true;
     api("/media").then((d) => { if (live) setList(d.assets || []); }).catch(() => { if (live) setList([]); });
     return () => { live = false; };
   }, []);
-  if (!list || list.length === 0) return null;
+  useEffect(() => {
+    if (list?.length === 1 && !currentId && attempted.current !== list[0].id) {
+      attempted.current = list[0].id;
+      pickRef.current(list[0]);
+    }
+  }, [list, currentId]);
+  if (!show || !list || list.length <= 1) return null;
   return (
     <label className="field">
       <span>Or use a saved image</span>
@@ -104,7 +113,7 @@ function SavedImages({ currentId, onPick }) {
 // these browser checks only save a round trip. Stale completions are ignored: an upload started
 // for another template, superseded by a newer upload, or made through a number that is no longer
 // active is never attached.
-export function ImageUpload({ asset, onUploaded, senderNumber, templateId, activeSenderId, onDiscarded, rememberDefault = false }) {
+export function ImageUpload({ asset, onUploaded, senderNumber, templateId, activeSenderId, onDiscarded, rememberDefault = false, inlineActions = null, onAutoSelected }) {
   const [busy, setBusy] = useState(false);
   const [changing, setChanging] = useState(false);
   const [error, setError] = useState(null);
@@ -154,37 +163,32 @@ export function ImageUpload({ asset, onUploaded, senderNumber, templateId, activ
   };
 
   return (
-    <div className="card stack upload-card">
-      <div>
-        <b>{asset && rememberDefault ? "Saved for this template" : "Header image"}</b>
+    <div className={inlineActions ? "stack upload-card" : "card stack upload-card"}>
+      {!inlineActions && <div>
+        <b>{rememberDefault ? "Image" : "Header image"}</b>
         {(!asset || changing) && <div className="small mut">JPEG or PNG, 8-bit RGB, up to 5 MB.</div>}
-      </div>
+      </div>}
+      {inlineActions && <div className="row">{inlineActions}<button type="button" className="secondary" disabled={busy} onClick={() => asset && !changing ? setChanging(true) : input.current?.click()}>{busy ? "Uploading…" : asset && !changing ? "Change image" : "Upload image"}</button></div>}
       {error && <div className="alert bad" role="alert" style={{ marginBottom: 0 }}>{error}</div>}
-      {asset && (
-        <details className="small asset-meta">
-          <summary>Image details</summary>
-          <div><b>{asset.originalName}</b> · {asset.width}×{asset.height} · {fmtBytes(asset.byteSize)}</div>
-          {asset.stored
-            ? <div className="mut">Saved privately in the CRM on {fmtDate(asset.uploadedAt)}. When a campaign starts, it&apos;s uploaded to Meta again if needed (for example after 30 days or a number change).</div>
-            : <div className="mut">Uploaded {fmtDate(asset.uploadedAt)}, not saved in the CRM. Meta documents uploads as lasting 30 days; this CRM treats the image as usable until {fmtDate(asset.usableUntil)} (2-day margin) and requires a campaign with it to start by {fmtDate(asset.latestStart)}.</div>}
-        </details>
-      )}
-      {(!asset || changing) && <SavedImages
+      <SavedImages
+        onAutoPick={onAutoSelected}
+        show={!asset || changing}
         currentId={asset?.id}
         onPick={async (a) => {
           seq.current += 1; // a pick supersedes any upload still in flight
           setBusy(false);
           setError(null);
           if (templateId !== currentTemplate.current) return;
-          await onUploaded(a, a.previewUrl, templateId);
+          try { await onUploaded(a, a.previewUrl, templateId); }
+          catch (err) { if (mounted.current) setError(err instanceof Error ? err.message : "Could not select the saved image."); }
         }}
-      />}
+      />
       <input ref={input} type="file" accept="image/jpeg,image/png" onChange={choose} hidden aria-label="Choose header image" />
-      <div>
+      {!inlineActions && <div>
         <button type="button" className={asset ? "secondary" : ""} disabled={busy} onClick={() => asset && !changing ? setChanging(true) : input.current?.click()}>
           {busy ? "Uploading…" : asset && !changing ? "Change image" : "Upload image"}
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
