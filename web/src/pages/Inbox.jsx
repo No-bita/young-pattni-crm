@@ -132,10 +132,10 @@ export default function Inbox({ contactId }) {
         <h1 className="grow">Inbox</h1>
         <button type="button" className="secondary" onClick={reload} disabled={loading} aria-label="Refresh inbox">{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
-      <div className="sub">Replies from your contacts land here</div>
+
       <ErrorBox error={error} onRetry={reload} />
       {loading && !data ? <Loading /> : data && data.conversations.length === 0 ? (
-        <div className="card"><Empty>No conversations yet. Messages you send and replies you receive appear here.</Empty></div>
+        <div className="card"><Empty>No conversations yet.</Empty></div>
       ) : data && (
         <div className="card" style={{ padding: "6px 16px" }}>
           {data.conversations.map((c) => (

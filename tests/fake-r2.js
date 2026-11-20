@@ -12,6 +12,10 @@ export function makeR2() {
       objects.set(key, { bytes, contentType: opts.httpMetadata?.contentType || null });
       return { key, size: bytes.length };
     },
+    async head(key) {
+      const o = objects.get(key);
+      return o ? { key, size: o.bytes.length } : null;
+    },
     async get(key, opts = {}) {
       const o = objects.get(key);
       if (!o) return null;

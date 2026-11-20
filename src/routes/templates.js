@@ -1,9 +1,19 @@
 import inspection from "./template-inspection.js";
 import { Hono } from "hono";
-import { all } from "../lib/db.js";
+import { all, one, run } from "../lib/db.js";
 import { accountId, readJson, str } from "../lib/http.js";
 import { getActiveSender } from "../lib/send.js";
-import { syncTemplates, presentTemplate, lookupTemplate } from "../lib/templates.js";
+import { syncTemplates, presentTemplate, lookupTemplate, needsImage, isUsable } from "../lib/templates.js";
+
+import { getOwnedAsset, isStored, presentAsset } from "../lib/media.js";
+
+async function withDefault(c, row) {
+  const result = presentTemplate(row);
+  const asset = row.default_media_asset_id && await getOwnedAsset(c.env.DB, accountId(c), row.default_media_asset_id);
+  const available = needsImage(row) && isStored(asset) && asset.kind === "image" && c.env.MEDIA_BUCKET && await c.env.MEDIA_BUCKET.head(asset.r2_key);
+  result.defaultImage = available ? presentAsset(asset) : null;
+  return result;
+}
 
 const templates = new Hono();
 templates.route("/", inspection);
@@ -13,7 +23,24 @@ templates.get("/", async (c) => {
   const sender = await getActiveSender(c.env.DB, accountId(c));
   if (!sender) return c.json({ templates: [], sender: null });
   const rows = await all(c.env.DB, "SELECT * FROM templates WHERE account_id = ? AND sender_id = ? ORDER BY name, language", accountId(c), sender.id);
-  return c.json({ templates: rows.map(presentTemplate), sender: { id: sender.id, displayNumber: sender.display_number } });
+  return c.json({ templates: await Promise.all(rows.map((row) => withDefault(c, row))), sender: { id: sender.id, displayNumber: sender.display_number } });
+});
+
+// Remember only a privately stored image owned by this account. No send is performed.
+templates.put("/:id/default-image", async (c) => {
+  const sender = await getActiveSender(c.env.DB, accountId(c));
+  if (!sender) return c.json({ error: "Activate a WhatsApp number first." }, 409);
+  const row = await one(c.env.DB, "SELECT * FROM templates WHERE id = ? AND account_id = ? AND sender_id = ?", c.req.param("id"), accountId(c), sender.id);
+  if (!row) return c.json({ error: "Template not found on the active number." }, 404);
+  if (!isUsable(row) || !needsImage(row)) return c.json({ error: "Choose an approved image-header template." }, 400);
+  if (!c.env.MEDIA_BUCKET) return c.json({ error: "Set up private image storage before saving a default image." }, 409);
+  const body = await readJson(c);
+  const asset = await getOwnedAsset(c.env.DB, accountId(c), str(body.mediaAssetId, 60));
+  if (!isStored(asset) || asset.kind !== "image") return c.json({ error: "Choose an image saved privately in this account." }, 400);
+  const stored = await c.env.MEDIA_BUCKET.head(asset.r2_key);
+  if (!stored) return c.json({ error: "The saved image is unavailable. Upload it again." }, 409);
+  await run(c.env.DB, "UPDATE templates SET default_media_asset_id = ? WHERE id = ? AND account_id = ? AND sender_id = ?", asset.id, row.id, accountId(c), sender.id);
+  return c.json({ defaultImage: presentAsset(asset) });
 });
 
 templates.post("/sync", async (c) => {
@@ -54,7 +81,7 @@ templates.post("/lookup", async (c) => {
       code: "NOT_FOUND",
     }, 404);
   }
-  return c.json({ template: presentTemplate(row) });
+  return c.json({ template: await withDefault(c, row) });
 });
 
 export default templates;

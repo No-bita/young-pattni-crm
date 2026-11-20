@@ -104,8 +104,9 @@ function SavedImages({ currentId, onPick }) {
 // these browser checks only save a round trip. Stale completions are ignored: an upload started
 // for another template, superseded by a newer upload, or made through a number that is no longer
 // active is never attached.
-export function ImageUpload({ asset, onUploaded, senderNumber, templateId, activeSenderId, onDiscarded }) {
+export function ImageUpload({ asset, onUploaded, senderNumber, templateId, activeSenderId, onDiscarded, rememberDefault = false }) {
   const [busy, setBusy] = useState(false);
+  const [changing, setChanging] = useState(false);
   const [error, setError] = useState(null);
   const input = useRef(null);
   const seq = useRef(0);
@@ -142,7 +143,7 @@ export function ImageUpload({ asset, onUploaded, senderNumber, templateId, activ
         if (verdict.reason === "sender_changed") setError("The active WhatsApp number changed during the upload. Upload the image again.");
         return;
       }
-      onUploaded(res.asset, URL.createObjectURL(file), forTemplateId);
+      await onUploaded(res.asset, URL.createObjectURL(file), forTemplateId);
     } catch (err) {
       if (!mounted.current || mySeq !== seq.current) return;
       // A failed replacement keeps the previously attached image (if any).
@@ -155,32 +156,33 @@ export function ImageUpload({ asset, onUploaded, senderNumber, templateId, activ
   return (
     <div className="card stack upload-card">
       <div>
-        <b>Header image</b>
-        <div className="small mut">Required by this template. JPEG or PNG, 8-bit RGB, up to 5 MB. Uploaded to Meta through {senderNumber || "the active number"}.</div>
+        <b>{asset && rememberDefault ? "Saved for this template" : "Header image"}</b>
+        {(!asset || changing) && <div className="small mut">JPEG or PNG, 8-bit RGB, up to 5 MB.</div>}
       </div>
       {error && <div className="alert bad" role="alert" style={{ marginBottom: 0 }}>{error}</div>}
       {asset && (
-        <div className="small asset-meta">
+        <details className="small asset-meta">
+          <summary>Image details</summary>
           <div><b>{asset.originalName}</b> · {asset.width}×{asset.height} · {fmtBytes(asset.byteSize)}</div>
           {asset.stored
             ? <div className="mut">Saved privately in the CRM on {fmtDate(asset.uploadedAt)}. When a campaign starts, it&apos;s uploaded to Meta again if needed (for example after 30 days or a number change).</div>
             : <div className="mut">Uploaded {fmtDate(asset.uploadedAt)}, not saved in the CRM. Meta documents uploads as lasting 30 days; this CRM treats the image as usable until {fmtDate(asset.usableUntil)} (2-day margin) and requires a campaign with it to start by {fmtDate(asset.latestStart)}.</div>}
-        </div>
+        </details>
       )}
-      <SavedImages
+      {(!asset || changing) && <SavedImages
         currentId={asset?.id}
-        onPick={(a) => {
+        onPick={async (a) => {
           seq.current += 1; // a pick supersedes any upload still in flight
           setBusy(false);
           setError(null);
           if (templateId !== currentTemplate.current) return;
-          onUploaded(a, a.previewUrl, templateId);
+          await onUploaded(a, a.previewUrl, templateId);
         }}
-      />
+      />}
       <input ref={input} type="file" accept="image/jpeg,image/png" onChange={choose} hidden aria-label="Choose header image" />
       <div>
-        <button type="button" className={asset ? "secondary" : ""} disabled={busy} onClick={() => input.current?.click()}>
-          {busy ? "Uploading…" : asset ? "Replace image" : "Upload image"}
+        <button type="button" className={asset ? "secondary" : ""} disabled={busy} onClick={() => asset && !changing ? setChanging(true) : input.current?.click()}>
+          {busy ? "Uploading…" : asset && !changing ? "Change image" : "Upload image"}
         </button>
       </div>
     </div>
