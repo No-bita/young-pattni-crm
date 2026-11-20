@@ -80,13 +80,6 @@ function Thread({ contactId, onSent }) {
                       ? <span className="ticks">✓✓</span>
                       : <span style={{ color: "#8696A0", fontSize: 12, letterSpacing: -2 }}>{m.status === "sent" ? "✓" : m.status === "delivered" ? "✓✓" : ""}</span>)}</span>
                   </div>
-                  {m.direction === "outbound" && (
-                    <div className="bmeta" style={{ justifyContent: "flex-start" }}>
-                      <Pill status={m.status} />
-                      {m.replied && <span className="pill ok">Replied</span>}
-                      <span>via {m.senderNumber || "unknown number"}</span>
-                    </div>
-                  )}
                   {m.status === "failed" && m.error && <div className="small" style={{ color: "var(--red)", marginTop: 4 }}>Not sent: {m.error}</div>}
                 </div>
               </div>
