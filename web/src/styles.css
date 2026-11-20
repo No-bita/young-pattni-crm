@@ -26,7 +26,7 @@ html, body, #root { margin: 0; min-height: 100%; }
 body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font-body); -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
 h1, h2, .disp { font-family: var(--font-head); font-weight: 700; letter-spacing: -0.01em; }
-h1 { font-size: 26px; margin: 0; }
+h1 { font-size: 26px; margin: 0; line-height: 1.15; }
 h2 { font-size: 18px; margin: 0 0 10px; }
 .mut { color: var(--mut); }
 .faint { color: var(--faint); }
@@ -69,6 +69,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* Forms */
 input, select, textarea { font: inherit; color: var(--ink); background: var(--control); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 11px 12px; min-width: 0; }
+select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236E6A62' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px; }
 textarea { resize: vertical; }
 label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
 label.field > span { font-size: 13px; }
@@ -129,6 +130,7 @@ label.field > span { font-size: 13px; }
 .bub.out { background: var(--wa-out); margin-left: auto; }
 .bub.in { background: #fff; }
 .bmeta { display: flex; justify-content: flex-end; gap: 4px; align-items: center; font-size: 11px; color: #8696A0; margin-top: 3px; }
+.btime { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ticks { color: var(--wa-tick); font-size: 12px; letter-spacing: -2px; }
 
 /* Inbox */
@@ -140,7 +142,16 @@ label.field > span { font-size: 13px; }
 .sendbtn { border-radius: 999px; width: 46px; height: 46px; justify-content: center; padding: 0; flex: none; }
 
 /* Tables (kept for dense admin/recipient views; wrap scrolls on small screens) */
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; background-color: var(--surface);
+  background-image:
+    linear-gradient(to right, var(--surface) 30%, rgba(255,255,255,0)),
+    linear-gradient(to left, var(--surface) 30%, rgba(255,255,255,0)),
+    radial-gradient(farthest-side at 0 50%, rgba(0,0,0,.10), rgba(0,0,0,0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.10), rgba(0,0,0,0));
+  background-position: left, right, left, right;
+  background-size: 32px 100%, 32px 100%, 12px 100%, 12px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll; }
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-weight: 600; color: var(--mut); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }

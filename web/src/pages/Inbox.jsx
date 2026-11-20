@@ -75,10 +75,10 @@ function Thread({ contactId, onSent }) {
                     : m.body}
                   <div className="bmeta">
                     {m.direction === "outbound" && m.templateName && <span className="mono">{m.templateName} · </span>}
-                    <span>{fmtDate(m.createdAt)}</span>
+                    <span className="btime"><span>{fmtDate(m.createdAt)}</span>
                     {m.direction === "outbound" && (m.status === "read"
                       ? <span className="ticks">✓✓</span>
-                      : <span style={{ color: "#8696A0", fontSize: 12, letterSpacing: -2 }}>{m.status === "sent" ? "✓" : m.status === "delivered" ? "✓✓" : ""}</span>)}
+                      : <span style={{ color: "#8696A0", fontSize: 12, letterSpacing: -2 }}>{m.status === "sent" ? "✓" : m.status === "delivered" ? "✓✓" : ""}</span>)}</span>
                   </div>
                   {m.direction === "outbound" && (
                     <div className="bmeta" style={{ justifyContent: "flex-start" }}>

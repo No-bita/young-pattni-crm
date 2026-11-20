@@ -65,6 +65,7 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
       )}
       {list.data && (
         <div className="row" style={{ marginBottom: 12 }}>
+          <span className="mut grow">{list.data.total} contacts</span>
           <button className="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
           <button className="secondary" disabled={(page + 1) * limit >= list.data.total} onClick={() => setPage(page + 1)}>Next</button>
         </div>
