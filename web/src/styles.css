@@ -201,3 +201,19 @@ details.cant-use summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .small-ph { height: auto; min-height: 64px; padding: 12px; text-align: center; font-size: 12.5px; }
 .bub-audio { display: grid; gap: 6px; padding: 6px 8px; min-width: 220px; }
 .bub-audio audio { width: 100%; max-width: 320px; }
+
+/* Desktop navigation; retain the existing mobile layout below desktop width. */
+.desktop-header { display: none; }
+@media (min-width: 1024px) {
+  .desktop-header { display: block; border-bottom: 1px solid var(--line); }
+  .desktop-header-inner { max-width: 1240px; margin: 0 auto; padding: 18px 28px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 24px; }
+  .app-brand { font-size: 18px; text-decoration: none; white-space: nowrap; }
+  .topnav { display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .topnav a { padding: 9px 14px; border-radius: 999px; color: var(--mut); text-decoration: none; font-size: 14px; white-space: nowrap; }
+  .topnav a.on { background: var(--ink); color: #fff; }
+  .account-actions { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .account-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .account-actions button { white-space: nowrap; padding: 7px 12px; font-size: 13px; }
+  .mobile-header, .pillnav { display: none; }
+  .shell { min-height: calc(100vh - 78px); padding-top: 26px; padding-bottom: 40px; }
+}

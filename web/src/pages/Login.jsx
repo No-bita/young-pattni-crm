@@ -35,7 +35,7 @@ export default function Login({ onSignedIn }) {
             <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </label>
           <button className="block" disabled={busy || !login || !password}>{busy ? "Signing in…" : "Sign in"}</button>
-          <div className="mut small" style={{ textAlign: "center" }}>Forgot your password? Ask your PJM operator</div>
+          <div className="mut small" style={{ textAlign: "center" }}>Need a password reset? Contact your PJM operator.</div>
         </form>
       </div>
     </div>

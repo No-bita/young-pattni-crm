@@ -93,7 +93,7 @@ function LookupByName({ senderNumber, onFound }) {
       <ErrorBox error={action.error} />
       {result && (result.usable
         ? <div className="alert ok" style={{ marginBottom: 0 }}>Found {result.name} ({result.language}). It&apos;s selected above{result.needsImage ? "; upload its header image below" : ""}.</div>
-        : <div className="alert warn" style={{ marginBottom: 0 }}>Found {result.name} ({result.language}), but it can&apos;t be used: {result.unsupportedReason}</div>)}
+        : <div className="alert warn" style={{ marginBottom: 0 }}>Found {result.name} ({result.language}), but it can&apos;t be used: {result.status !== "APPROVED" ? ({ PENDING: "Pending approval", REJECTED: "Rejected", PAUSED: "Paused", DISABLED: "Disabled" }[result.status] || result.status) : result.unsupportedReason}</div>)}
       <div className="row">
         <button disabled={action.busy || !tplName.trim() || !language.trim()}>{action.busy ? "Looking up…" : "Look up"}</button>
         <button type="button" className="secondary" onClick={() => { setOpen(false); setResult(null); action.setError(null); }}>Close</button>
@@ -120,7 +120,7 @@ export default function CampaignNew() {
   selectedRef.current = templateId;
   // An attached image is dropped if the active number changes (it can only be sent by its own number).
   useEffect(() => {
-    if (asset && data?.sender && !assetStillValid(asset, data.sender.id)) {
+    if (asset && !asset.stored && data?.sender && !assetStillValid(asset, data.sender.id)) {
       setAsset(null);
       setAssetUrl(null);
     }
@@ -129,8 +129,8 @@ export default function CampaignNew() {
   const pickTemplate = (t) => {
     setTemplateId(t.id);
     setParams(Array.from({ length: t?.paramCount || 0 }, () => ({ type: "contact_name", fallback: "" })));
-    setAsset(null);
-    setAssetUrl(null);
+    setAsset(t?.defaultImage || null);
+    setAssetUrl(t?.defaultImage?.previewUrl || null);
   };
   const pick = (id) => {
     const t = usable.find((x) => x.id === id);
@@ -153,7 +153,7 @@ export default function CampaignNew() {
 
   return (
     <>
-      <div className="head"><h1>New campaign</h1><span className="small faint">1 of 3</span></div>
+      <div className="head"><h1>New campaign</h1></div>
       <div className="sub">Message → Audience → Send</div>
       <TemplateInspection />
       <ErrorBox error={error || action.error} onRetry={error ? reload : undefined} />
@@ -166,31 +166,34 @@ export default function CampaignNew() {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="November offer" />
           </label>
 
-          <h2>Pick the message</h2>
-          <div className="small mut" style={{ margin: "-4px 0 10px" }}>
-            Approved templates for {data.sender.displayNumber}
-          </div>
+          <label className="field" style={{ marginBottom: 12 }}>
+            <span>Template</span>
+            <select value={templateId} onChange={(e) => {
+              if (!e.target.value) {
+                setTemplateId(""); setParams([]); setAsset(null); setAssetUrl(null);
+              } else pick(e.target.value);
+            }}>
+              <option value="">Select a template</option>
+              {usable.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.language})</option>)}
+            </select>
+          </label>
           {usable.length === 0 && <div className="alert warn">No approved templates this app can send in this Messaging account. Create one in Meta&apos;s WhatsApp Manager, wait for approval, then refresh.</div>}
-          {usable.map((t) => {
-            const picked = t.id === templateId;
-            return (
-              <div key={t.id} className={`wa pick ${picked ? "picked" : ""}`} style={{ marginBottom: 12 }} onClick={() => pick(t.id)}>
+          {template && (
+            <>
+              <div className="small mut" style={{ marginBottom: 8 }}>Message preview</div>
+              <div className="wa" style={{ marginBottom: 12 }}>
                 <MessageBubble
-                  body={picked ? previewBody(t, params) : previewBody(t, [])}
-                  needsImage={t.needsImage}
-                  imageUrl={picked ? assetUrl : null}
-                  headerText={t.headerText}
-                  footer={t.footerText}
-                  buttons={t.buttons}
-                  showDestinations={picked}
+                  body={previewBody(template, params)}
+                  needsImage={template.needsImage}
+                  imageUrl={assetUrl}
+                  headerText={template.headerText}
+                  footer={template.footerText}
+                  buttons={template.buttons}
+                  showDestinations
                 />
-                <div className="row" style={{ justifyContent: "flex-end", marginTop: 6, flexWrap: "nowrap" }}>
-                  <span className="small mut">{t.name} · {t.language}{t.needsImage ? " · image header" : ""}</span>
-                  {picked && <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--ink)", color: "#fff", display: "grid", placeItems: "center", fontSize: 12 }}>✓</span>}
-                </div>
               </div>
-            );
-          })}
+            </>
+          )}
           {unusable.length > 0 && (
             <details className="card cant-use">
               <summary>{unusable.length} template{unusable.length > 1 ? "s" : ""} cannot be used here</summary>
@@ -198,7 +201,7 @@ export default function CampaignNew() {
                 {unusable.map((t) => (
                   <div key={t.id} className="unsupported small">
                     <b>{t.name}</b> · {t.language}
-                    <div className="reason">{t.unsupportedReason}</div>
+                    <div className="reason">{t.status !== "APPROVED" ? ({ PENDING: "Pending approval", REJECTED: "Rejected", PAUSED: "Paused", DISABLED: "Disabled" }[t.status] || t.status) : t.unsupportedReason}</div>
                   </div>
                 ))}
               </div>
@@ -207,27 +210,36 @@ export default function CampaignNew() {
           <div className="row" style={{ marginBottom: 12 }}>
             <button type="button" className="secondary" disabled={action.busy} onClick={sync}>{action.busy ? "Refreshing…" : "Refresh from Meta"}</button>
           </div>
+          <details style={{ marginBottom: 16 }}>
+            <summary>Troubleshooting</summary>
           <LookupByName
             senderNumber={data.sender.displayNumber}
             onFound={async (t) => { await reload(); if (t.usable) pickTemplate(t); }}
           />
 
+          </details>
+
           {template?.needsImage && (
             <ImageUpload
               key={template.id}
+              rememberDefault
               asset={asset}
               templateId={template.id}
               activeSenderId={data.sender.id}
               senderNumber={data.sender.displayNumber}
-              onUploaded={(a, url, forTemplateId) => {
-                if (forTemplateId !== selectedRef.current) return; // stale: started for another template
-                setAsset(a);
-                setAssetUrl(url);
-              }}
+              onUploaded={(a, url, forTemplateId) => action.run(async () => {
+                if (forTemplateId !== selectedRef.current) return;
+                // Select only after the default has been saved successfully.
+                const saved = await api(`/templates/${forTemplateId}/default-image`, { method: "PUT", body: { mediaAssetId: a.id } });
+                await reload();
+                if (forTemplateId !== selectedRef.current) return;
+                setAsset(saved.defaultImage);
+                setAssetUrl(saved.defaultImage.previewUrl);
+              })}
             />
           )}
           {template && params.length > 0 && <TemplateFields template={template} params={params} setParams={setParams} />}
-          {template?.needsImage && !asset && <div className="small mut" style={{ marginTop: 10 }}>Upload the header image to continue.</div>}
+          {template?.needsImage && !asset && <div className="small mut" style={{ marginTop: 10 }}>Choose an image once. It will be remembered for this template.</div>}
           <div style={{ marginTop: 16 }}>
             <button className="block" disabled={action.busy || !name.trim() || !template || !paramsComplete(params) || !imageReady} onClick={create}>Continue to audience</button>
           </div>

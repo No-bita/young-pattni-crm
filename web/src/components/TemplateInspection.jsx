@@ -48,7 +48,7 @@ export default function TemplateInspection() {
     <section className="card template-inspection" aria-labelledby="inspection-heading">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
         <h2 id="inspection-heading" style={{ margin: 0 }}>Template diagnostic</h2>
-        <span className="strip n">Diagnostic only</span>
+
       </div>
       <div className="small mut" style={{ marginBottom: 12 }}>Check what Meta returns for this template, without sending a message</div>
       <div className="inspection-template"><b>{data.template.name}</b><span className="small mut">{data.template.language}</span></div>
@@ -57,7 +57,7 @@ export default function TemplateInspection() {
       </button>
       <div className="small mut" style={{ marginTop: 8 }}>Available until {fmtDate(data.expiresAt)} · Private values stay hidden</div>
       <div aria-live="polite" aria-busy={busy}>
-        {busy && <p className="small mut">Reads one template. Nothing is sent.</p>}
+
         <div style={{ marginTop: error || result ? 12 : 0 }}><ErrorBox error={error} /></div>
         {reason && <div className="small" role="status" style={{ marginTop: 8 }}>
           Inspection reason: <code>{reason}</code>. No response values are shown. Don't retry yet
@@ -71,7 +71,7 @@ export default function TemplateInspection() {
           <div className="inspection-row"><span>Template status</span><b>{inventory.status === "ABSENT" ? "Not returned" : inventory.status}</b></div>
           <div className="inspection-row"><span>Variable format</span><b>{inventory.parameterFormat === "ABSENT" ? "Not returned" : inventory.parameterFormat}</b></div>
           <div className="inspection-row"><span>Components returned</span><b>{inventory.components.map((c) => c.type).join(", ") || "None"}</b></div>
-          <div className="small mut" style={{ marginTop: 10 }}>{result.graphVersion} · {result.requestCount} Meta read · Text, examples and full links hidden</div>
+          <div className="small mut" style={{ marginTop: 10 }}>{result.graphVersion} · {result.requestCount} Meta read</div>
           <details style={{ marginTop: 12 }}>
             <summary>Sanitized field inventory</summary>
             <pre className="inspection-json">{JSON.stringify(result, null, 2)}</pre>

@@ -6,7 +6,7 @@ export default function Admin() {
   return (
     <>
       <div className="head"><h1>Accounts</h1><button className="secondary" onClick={reload}>Refresh</button></div>
-      <div className="sub">Every CRM account on this deployment</div>
+
       <div className="card">
         <ErrorBox error={error} onRetry={reload} />
         {loading && !data ? <Loading /> : data && data.accounts.length === 0 ? <Empty>No accounts.</Empty> : data && (

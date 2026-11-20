@@ -25,7 +25,7 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
   const selectAllMatching = () => action.run(async () => {
     const res = await api(`/contacts/ids?q=${encodeURIComponent(q)}`);
     setSelected(new Set([...selected, ...res.ids]));
-    setNote(res.truncated ? `Only the first ${res.cap} matching contacts were added: a campaign can reach at most ${res.cap}.` : `${res.ids.length} matching contacts who can be messaged were added.`);
+    setNote(res.truncated ? `Only the first ${res.cap} matching contacts were added: a campaign can reach at most ${res.cap}.` : `Added ${res.ids.length} contacts.`);
   });
 
   const save = () => action.run(async () => {
@@ -69,7 +69,7 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
           <button className="secondary" disabled={(page + 1) * limit >= list.data.total} onClick={() => setPage(page + 1)}>Next</button>
         </div>
       )}
-      <button className="block" disabled={action.busy || selected.size === 0} onClick={save}>Save audience and review</button>
+      <button className="block" disabled={action.busy || selected.size === 0} onClick={save}>Review campaign</button>
     </>
   );
 }
@@ -146,7 +146,7 @@ function ReviewStep({ campaign, template, onLaunched, onChanged }) {
           {campaign.media && (
             <div className="small mut" style={{ marginTop: 8 }}>
               {campaign.media.stored
-                ? "Image saved in the CRM · uploaded to Meta again automatically if needed when the campaign starts"
+                ? "Saved image"
                 : `Image uploaded through ${campaign.media.senderNumber || "a WhatsApp number"} · must start by ${fmtDate(latestStart || campaign.media.latestStart)}`}
             </div>
           )}
@@ -171,7 +171,7 @@ function ReviewStep({ campaign, template, onLaunched, onChanged }) {
           )}
           <label className="row" style={{ gap: 8, flexWrap: "nowrap", alignItems: "flex-start" }}>
             <input type="checkbox" className="check" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-            <span className="grow">I confirm this campaign goes to exactly {a?.sendable} contacts</span>
+            <span className="grow">Send to exactly {a?.sendable} contacts</span>
           </label>
           <div className="row">
             <button className="secondary" onClick={() => go(`/campaigns/${campaign.id}/audience`)}>Change audience</button>
@@ -191,6 +191,7 @@ function Progress({ campaign, reload }) {
   const action = useAction();
   const r = campaign.recipients || {};
   const live = campaign.status === "sending";
+  const activeDeadline = live || campaign.status === "scheduled";
 
   useEffect(() => {
     if (!live) return undefined;
@@ -216,27 +217,21 @@ function Progress({ campaign, reload }) {
             <div className="small mut">
               {campaign.status === "scheduled" ? `Goes out ${fmtDate(campaign.scheduledAt)}` : `Started ${fmtDate(campaign.launchedAt)}`}
               {campaign.completedAt && ` · Finished ${fmtDate(campaign.completedAt)}`}
-              {campaign.confirmedCount != null && ` · Confirmed for ${campaign.confirmedCount} contacts`}
+
             </div>
-            {campaign.sendDeadline && (
+            {campaign.sendDeadline && activeDeadline && (
               <div className="small mut">
                 Sending window ends {fmtDate(campaign.sendDeadline)}. Recipients still queued then are not sent.
                 {campaign.notSentDeadline > 0 && <b> {campaign.notSentDeadline} not sent because the window ended.</b>}
               </div>
             )}
-            {campaign.contentCheck && (
-              <div className="small mut check-note">
-                {campaign.contentCheck.source === "meta"
-                  ? `Template compared with Meta ${fmtDate(campaign.contentCheck.at)}.`
-                  : `Template NOT freshly checked with Meta at ${fmtDate(campaign.contentCheck.at)}: ${campaign.contentCheck.note}`}
-              </div>
+            {!activeDeadline && campaign.notSentDeadline > 0 && (
+              <div className="small record-error">{campaign.notSentDeadline} not sent because the sending window ended.</div>
             )}
-            {campaign.media && (
-              <div className="row small" style={{ marginTop: 8, flexWrap: "nowrap" }}>
-                <img src={campaign.media.previewUrl} alt="Header image" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
-                <span className="mut">Header image {campaign.media.originalName} · sent through {campaign.media.senderNumber || "the campaign's number"}</span>
-              </div>
+            {campaign.contentCheck && campaign.contentCheck.source !== "meta" && (
+              <div className="small record-error">Template NOT freshly checked with Meta at {fmtDate(campaign.contentCheck.at)}: {campaign.contentCheck.note}</div>
             )}
+
           </div>
           {(campaign.status === "scheduled" || campaign.status === "sending") && (
             <button className="danger" disabled={action.busy} onClick={cancel}>{campaign.status === "scheduled" ? "Cancel schedule" : "Stop sending"}</button>
@@ -246,6 +241,18 @@ function Progress({ campaign, reload }) {
           <div className="stats">{stats.map(([k, v, cls]) => <div className={cls ? `stat ${cls}` : "stat"} key={k}><b>{v}</b><span className="mut">{k}</span></div>)}</div>
         )}
       </div>
+      <details className="card small mut">
+        <summary>Campaign details</summary>
+        <div className="stack" style={{ marginTop: 12 }}>
+          {campaign.confirmedCount != null && <div>Confirmed for {campaign.confirmedCount} contacts</div>}
+          {!activeDeadline && campaign.sendDeadline && <div>Sending window ended {fmtDate(campaign.sendDeadline)}. Recipients still queued then were not sent.</div>}
+          {campaign.contentCheck?.source === "meta" && <div>Template compared with Meta {fmtDate(campaign.contentCheck.at)}.</div>}
+          {campaign.media && <div className="row" style={{ flexWrap: "nowrap" }}>
+            <img src={campaign.media.previewUrl} alt="Header image" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 8 }} />
+            <span>{campaign.media.originalName}</span>
+          </div>}
+        </div>
+      </details>
       {campaign.status !== "scheduled" && (
         <div className="card">
           <div className="row" style={{ marginBottom: 12 }}>

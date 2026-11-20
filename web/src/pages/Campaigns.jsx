@@ -35,10 +35,10 @@ export default function Campaigns() {
         <h1>Campaigns</h1>
         <a className="btn" href="#/campaigns/new">+ New</a>
       </div>
-      <div className="sub">{count ? `${count} campaign${count === 1 ? "" : "s"}${running ? ` · ${running} running` : ""}` : "Your WhatsApp campaigns live here"}</div>
+      <div className="sub">{count ? `${count} campaign${count === 1 ? "" : "s"}${running ? ` · ${running} running` : ""}` : ""}</div>
       <ErrorBox error={error} onRetry={reload} />
       {loading && !data ? <Loading /> : data && data.campaigns.length === 0 ? (
-        <div className="card"><Empty>No campaigns yet<br /><span className="small">Tap + New and send your first one</span></Empty></div>
+        <div className="card"><Empty>No campaigns yet</Empty></div>
       ) : data && data.campaigns.map((c) => (
         <div key={c.id} className="card click" onClick={() => go(`/campaigns/${c.id}`)}>
           <div className="row" style={{ justifyContent: "space-between", flexWrap: "nowrap" }}>

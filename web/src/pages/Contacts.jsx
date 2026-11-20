@@ -58,13 +58,13 @@ function Importer({ onDone }) {
 
   return (
     <div className="card">
-      <h2>Import contacts from CSV</h2>
+      <h2>Import CSV</h2>
       <div className="stack">
         <input type="file" accept=".csv,text/csv" onChange={onFile} />
         <ErrorBox error={error} />
         {parsed && (
           <>
-            <div>{parsed.rows.length} rows in {parsed.name}. First rows:</div>
+            <div>{parsed.rows.length} rows · {parsed.name}</div>
             <div className="table-wrap">
               <table>
                 <thead><tr><th>Phone</th><th>Name</th></tr></thead>
@@ -136,7 +136,7 @@ export default function Contacts() {
           <button className="secondary" onClick={() => setPanel(panel === "import" ? null : "import")}>Import CSV</button>
         </div>
       </div>
-      <div className="sub">Everyone you can message on WhatsApp</div>
+
       {panel === "add" && <AddContact onDone={reload} />}
       {panel === "import" && <Importer onDone={reload} />}
       <div className="card">
@@ -167,7 +167,7 @@ export default function Contacts() {
                   </div>
                   {c.suppressed
                     ? <Strip tone="r" dot={false}>Opted out</Strip>
-                    : <Strip tone="g" dot={false}>Can be messaged</Strip>}
+                    : null}
                 </div>
               ))}
             </div>

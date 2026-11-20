@@ -62,15 +62,27 @@ export default function App() {
   const active = section || "campaigns";
   return (
     <>
+      <header className="desktop-header">
+        <div className="desktop-header-inner">
+          <a href="#/campaigns" className="disp app-brand">PJM Youth CRM</a>
+          <nav className="topnav" aria-label="Main navigation">
+            {nav.map(([key, label]) => <a key={key} href={`#/${key}`} className={active === key ? "on" : ""} aria-current={active === key ? "page" : undefined}>{label}</a>)}
+          </nav>
+          <div className="account-actions">
+            <span className="small mut account-name" title={me.name}>{me.name}</span>
+            <button className="secondary" onClick={signOut}>Sign out</button>
+          </div>
+        </div>
+      </header>
       <div className="shell">
-        <div className="row" style={{ marginBottom: 10 }}>
+        <div className="row mobile-header" style={{ marginBottom: 10 }}>
           <span className="disp grow" style={{ fontSize: 15, fontWeight: 700 }}>PJM Youth CRM</span>
           <span className="small mut">{me.name}</span>
           <button className="secondary" style={{ padding: "6px 12px", fontSize: 13 }} onClick={signOut}>Sign out</button>
         </div>
         {page}
       </div>
-      <nav className="pillnav">
+      <nav className="pillnav" aria-label="Mobile navigation">
         {nav.map(([key, label, icon]) => (
           <a key={key} href={`#/${key}`} className={active === key ? "on" : ""}>{icon}{label}</a>
         ))}
