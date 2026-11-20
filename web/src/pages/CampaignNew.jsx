@@ -154,7 +154,6 @@ export default function CampaignNew() {
   return (
     <>
       <div className="head"><h1>New campaign</h1></div>
-      <div className="sub">Message → Audience → Send</div>
       <TemplateInspection />
       <ErrorBox error={error || action.error} onRetry={error ? reload : undefined} />
       {loading && !data ? <Loading /> : data && !data.sender ? (
@@ -178,6 +177,29 @@ export default function CampaignNew() {
             </select>
           </label>
           {usable.length === 0 && <div className="alert warn">No approved templates this app can send in this Messaging account. Create one in Meta&apos;s WhatsApp Manager, wait for approval, then refresh.</div>}
+          <div style={{ marginBottom: 12 }}>
+          {template?.needsImage ? (
+            <ImageUpload
+              key={template.id}
+              rememberDefault
+              onAutoSelected={(a) => { if (template.id !== selectedRef.current) return; setAsset(a); setAssetUrl(a.previewUrl); }}
+              inlineActions={<button type="button" className="secondary" disabled={action.busy} onClick={sync}>{action.busy ? "Refreshing…" : "Refresh from Meta"}</button>}
+              asset={asset}
+              templateId={template.id}
+              activeSenderId={data.sender.id}
+              senderNumber={data.sender.displayNumber}
+              onUploaded={(a, url, forTemplateId) => action.run(async () => {
+                if (forTemplateId !== selectedRef.current) return;
+                // Select only after the default has been saved successfully.
+                const saved = await api(`/templates/${forTemplateId}/default-image`, { method: "PUT", body: { mediaAssetId: a.id } });
+                await reload();
+                if (forTemplateId !== selectedRef.current) return;
+                setAsset(saved.defaultImage);
+                setAssetUrl(saved.defaultImage.previewUrl);
+              })}
+            />
+          ) : <button type="button" className="secondary" disabled={action.busy} onClick={sync}>{action.busy ? "Refreshing…" : "Refresh from Meta"}</button>}
+          </div>
           {template && (
             <>
               <div className="small mut" style={{ marginBottom: 8 }}>Message preview</div>
@@ -206,37 +228,6 @@ export default function CampaignNew() {
                 ))}
               </div>
             </details>
-          )}
-          <div className="row" style={{ marginBottom: 12 }}>
-            <button type="button" className="secondary" disabled={action.busy} onClick={sync}>{action.busy ? "Refreshing…" : "Refresh from Meta"}</button>
-          </div>
-          <details style={{ marginBottom: 16 }}>
-            <summary>Troubleshooting</summary>
-          <LookupByName
-            senderNumber={data.sender.displayNumber}
-            onFound={async (t) => { await reload(); if (t.usable) pickTemplate(t); }}
-          />
-
-          </details>
-
-          {template?.needsImage && (
-            <ImageUpload
-              key={template.id}
-              rememberDefault
-              asset={asset}
-              templateId={template.id}
-              activeSenderId={data.sender.id}
-              senderNumber={data.sender.displayNumber}
-              onUploaded={(a, url, forTemplateId) => action.run(async () => {
-                if (forTemplateId !== selectedRef.current) return;
-                // Select only after the default has been saved successfully.
-                const saved = await api(`/templates/${forTemplateId}/default-image`, { method: "PUT", body: { mediaAssetId: a.id } });
-                await reload();
-                if (forTemplateId !== selectedRef.current) return;
-                setAsset(saved.defaultImage);
-                setAssetUrl(saved.defaultImage.previewUrl);
-              })}
-            />
           )}
           {template && params.length > 0 && <TemplateFields template={template} params={params} setParams={setParams} />}
           {template?.needsImage && !asset && <div className="small mut" style={{ marginTop: 10 }}>Choose an image once. It will be remembered for this template.</div>}
