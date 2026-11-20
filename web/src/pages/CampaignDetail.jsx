@@ -206,7 +206,7 @@ function Progress({ campaign, reload }) {
   });
 
   const summary = campaignSummary(r);
-  const stats = [["Sent", summary.total, ""], ["Delivered", summary.delivered, "g"], ["Read", summary.read, "b"], ["Failed", summary.failed, summary.failed ? "r" : ""]];
+  const stats = [["Sent", summary.total, ""], ["Delivered", summary.delivered, "b"], ["Read", summary.read, "g"], ["Failed", summary.failed, summary.failed ? "r" : ""]];
   return (
     <>
       <ErrorBox error={action.error} />
