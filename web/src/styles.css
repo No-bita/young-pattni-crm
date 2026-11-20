@@ -217,3 +217,12 @@ details.cant-use summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
   .mobile-header, .pillnav { display: none; }
   .shell { min-height: calc(100vh - 78px); padding-top: 26px; padding-bottom: 40px; }
 }
+
+/* Click-to-open account navigation, shared by mobile and desktop. */
+.account-menu { position: relative; z-index: 30; min-width: 0; }
+.account-menu summary { display: flex; align-items: center; gap: 6px; max-width: 160px; cursor: pointer; font-size: 12.5px; color: var(--mut); list-style: none; }
+.account-menu summary::-webkit-details-marker { display: none; }
+.account-menu summary:focus-visible { outline: 2px solid var(--mut); outline-offset: 4px; border-radius: 4px; }
+.account-menu-links { position: absolute; right: 0; top: calc(100% + 12px); min-width: 150px; padding: 6px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); box-shadow: 0 8px 24px rgba(23,23,23,.1); }
+.account-menu-links a { display: block; padding: 10px 12px; text-decoration: none; border-radius: 8px; }
+.account-menu-links a:hover, .account-menu-links a[aria-current="page"] { background: var(--soft); }

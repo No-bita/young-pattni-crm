@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api.js";
 import { Loading } from "./components/ui.jsx";
-import { SendIcon, PeopleIcon, ChatIcon, PhoneIcon, ShieldIcon } from "./components/icons.jsx";
+import { SendIcon, PeopleIcon, ChatIcon } from "./components/icons.jsx";
 import Login from "./pages/Login.jsx";
 import Contacts from "./pages/Contacts.jsx";
 import Campaigns from "./pages/Campaigns.jsx";
@@ -19,6 +19,24 @@ function useHashRoute() {
     return () => window.removeEventListener("hashchange", on);
   }, []);
   return hash.replace(/^#/, "").split("/").filter(Boolean);
+}
+
+function AccountMenu({ account, active }) {
+  const menu = useRef(null);
+  useEffect(() => {
+    const closeOutside = (e) => { if (menu.current && !menu.current.contains(e.target)) menu.current.open = false; };
+    const closeEscape = (e) => { if (e.key === "Escape" && menu.current?.open) { menu.current.open = false; menu.current.querySelector("summary")?.focus(); } };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeEscape); };
+  }, []);
+  return <details className="account-menu" ref={menu}>
+    <summary title={account.name}>{account.name}<span aria-hidden="true">▾</span></summary>
+    <nav aria-label="Account navigation" className="account-menu-links" onClick={() => { menu.current.open = false; }}>
+      <a href="#/number" aria-current={active === "number" ? "page" : undefined}>Number</a>
+      {account.isAdmin && <a href="#/admin" aria-current={active === "admin" ? "page" : undefined}>Admin</a>}
+    </nav>
+  </details>;
 }
 
 export default function App() {
@@ -50,9 +68,7 @@ export default function App() {
     ["campaigns", "Campaigns", <SendIcon key="i" />],
     ["contacts", "Contacts", <PeopleIcon key="i" />],
     ["inbox", "Inbox", <ChatIcon key="i" />],
-    ["number", "Number", <PhoneIcon key="i" />],
   ];
-  if (me.isAdmin) nav.push(["admin", "Admin", <ShieldIcon key="i" />]);
 
   const signOut = async () => {
     await api("/auth/logout", { method: "POST" }).catch(() => {});
@@ -69,7 +85,7 @@ export default function App() {
             {nav.map(([key, label]) => <a key={key} href={`#/${key}`} className={active === key ? "on" : ""} aria-current={active === key ? "page" : undefined}>{label}</a>)}
           </nav>
           <div className="account-actions">
-            <span className="small mut account-name" title={me.name}>{me.name}</span>
+            <AccountMenu account={me} active={active} />
             <button className="secondary" onClick={signOut}>Sign out</button>
           </div>
         </div>
@@ -77,7 +93,7 @@ export default function App() {
       <div className="shell">
         <div className="row mobile-header" style={{ marginBottom: 10 }}>
           <span className="disp grow" style={{ fontSize: 15, fontWeight: 700 }}>PJM Youth CRM</span>
-          <span className="small mut">{me.name}</span>
+          <AccountMenu account={me} active={active} />
           <button className="secondary" style={{ padding: "6px 12px", fontSize: 13 }} onClick={signOut}>Sign out</button>
         </div>
         {page}
