@@ -136,16 +136,18 @@ export default function Inbox({ contactId }) {
               <div className="grow">
                 <div className="row" style={{ flexWrap: "nowrap", gap: 8 }}>
                   <b className="grow" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || c.phone}</b>
-                  <span className="mut small" style={{ flex: "none" }}>{fmtDate(c.lastMessageAt)}</span>
                 </div>
                 <div className="mut small" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {c.lastDirection === "outbound" ? "You: " : ""}{c.lastBody}
                 </div>
               </div>
-              <span className="row" style={{ gap: 6, flex: "none" }}>
-                {c.lastDirection === "outbound" && <Pill status={c.lastStatus} />}
-                {c.lastDirection === "inbound" && <span className="pill ok">Replied</span>}
-                {c.suppressed && <span className="pill bad">Opted out</span>}
+              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "center", gap: 4, flex: "none" }}>
+                <span className="mut small">{fmtDate(c.lastMessageAt)}</span>
+                <span className="row" style={{ gap: 6 }}>
+                  {c.lastDirection === "outbound" && <Pill status={c.lastStatus} />}
+                  {c.lastDirection === "inbound" && <span className="pill ok">Replied</span>}
+                  {c.suppressed && <span className="pill bad">Opted out</span>}
+                </span>
               </span>
             </a>
           ))}
