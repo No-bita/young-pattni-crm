@@ -118,7 +118,6 @@ export default function Inbox({ contactId }) {
         <div className="head">
           <div className="grow">
             <a href="#/inbox" className="mut small backlink">← Inbox</a>
-            <h1>Conversation</h1>
           </div>
         </div>
         <Thread contactId={contactId} onSent={reload} />
