@@ -138,7 +138,7 @@ export default function NumberPage() {
             <div className="card" key={s.id}>
               <div className="row">
                 <div className="grow">
-                  <div><b>{s.displayNumber || "Number not verified yet"}</b> <Pill status={s.status} /> {s.verifiedName && <span className="mut">{s.verifiedName}</span>}</div>
+                  <div><b>{s.displayNumber || "Number not verified yet"}</b> <Pill status={s.status} /> {s.verifiedName && <span className="mut" style={{ whiteSpace: "nowrap" }}>{s.verifiedName}</span>}</div>
                   <details className="small mut"><summary>Connection details</summary><div className="mono">phone id {s.phoneNumberId} · WABA {s.wabaId} · WA_TOKEN_{s.tokenRef}</div></details>
                   <div className="mut small">
                     {s.testedAt ? `Tested ${fmtDate(s.testedAt)}` : "Not tested"}
