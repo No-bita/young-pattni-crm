@@ -310,7 +310,7 @@ export default function CampaignDetail({ id, step }) {
     <>
       <div className="head">
         <div className="grow">
-          <a href="#/campaigns" className="mut small backlink">← Campaigns</a>
+          <a href="#/campaigns" className="btn secondary backbtn">← Back to campaigns</a>
           <div className="row" style={{ flexWrap: "nowrap" }}>
             <h1>{campaign.name}</h1>
             <Strip tone={TONE[campaign.status] || "n"} dot={campaign.status !== "draft" && campaign.status !== "cancelled"}>{LABEL[campaign.status] || campaign.status}</Strip>

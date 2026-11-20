@@ -38,6 +38,7 @@ h2 { font-size: 18px; margin: 0 0 10px; }
 .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 4px; flex-wrap: wrap; }
 .sub { color: var(--mut); font-size: 13px; margin-bottom: 18px; }
 .backlink { display: inline-block; margin-bottom: 6px; text-decoration: none; }
+.backbtn { margin-bottom: 8px; }
 
 .pillnav { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; width: min(100% - 36px, 684px);
   background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
@@ -59,8 +60,8 @@ h2 { font-size: 18px; margin: 0 0 10px; }
 button, .btn { font: inherit; font-weight: 600; font-size: 14px; border: 1px solid var(--ink); background: var(--ink); color: #fff;
   border-radius: var(--r-sm); padding: 10px 16px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 button:hover:not(:disabled), .btn:hover { background: var(--ink-hover); }
-button.secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
-button.secondary:hover:not(:disabled) { background: var(--soft); }
+button.secondary, .btn.secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+button.secondary:hover:not(:disabled), .btn.secondary:hover { background: var(--soft); }
 button.danger { background: var(--surface); color: var(--red); border-color: var(--red-b); }
 button.danger:hover:not(:disabled) { background: var(--red-b); }
 button:disabled { opacity: .45; cursor: not-allowed; }
