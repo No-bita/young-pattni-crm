@@ -15,9 +15,9 @@
     "admin": "node scripts/admin.mjs"
   },
   "dependencies": {
-    "hono": "4.12.27"
+    "hono": "4.13.19"
   },
   "devDependencies": {
-    "wrangler": "4.42.0"
+    "wrangler": "4.165.0"
   }
 }
