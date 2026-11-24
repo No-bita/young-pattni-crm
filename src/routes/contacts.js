@@ -3,6 +3,7 @@ import { all, one, run, newId, nowIso } from "../lib/db.js";
 import { normalizePhone, PhoneError, formatPhone } from "../lib/phone.js";
 import { accountId, readJson, str, intEnv } from "../lib/http.js";
 
+import { previewContactImport, resolveImportNames } from "../lib/import-preview.js";
 import { prepareContactImport, missingNamesError } from "../lib/contact-import.js";
 
 import { presentImport, importFingerprint, writeNamedImport } from "../lib/named-imports.js";
@@ -92,6 +93,14 @@ contacts.patch("/:id", async (c) => {
 
 // Rows are parsed from CSV in the browser and sent as JSON: [{ phone, name }].
 // Existing contacts keep their suppression; a non-empty name updates the stored name.
+contacts.post("/import/preview", async (c) => {
+  const body = await readJson(c);
+  if (!Array.isArray(body.rows) || !body.rows.length || body.rows.length > MAX_IMPORT_ROWS) return c.json({error:"Choose 1 to 5000 contact rows."},400);
+  const preview = await previewContactImport(c.env.DB, accountId(c), body.rows);
+  if (preview.missingNameRows.length) return c.json({error:missingNamesError(preview.missingNameRows),code:"MISSING_IMPORT_NAMES"},400);
+  return c.json({ contacts: preview.list, conflicts: preview.conflicts, invalid: preview.invalid, duplicatesInFile: preview.duplicatesInFile });
+});
+
 contacts.post("/import", async (c) => {
   const body = await readJson(c);
   const rows = Array.isArray(body.rows) ? body.rows : null;
@@ -99,14 +108,24 @@ contacts.post("/import", async (c) => {
   if (rows.length > MAX_IMPORT_ROWS) return c.json({ error: `Import at most ${MAX_IMPORT_ROWS} rows at a time.` }, 400);
 
   const id = accountId(c);
-  const { list, invalid, missingNameRows } = prepareContactImport(rows);
+  const preview = await previewContactImport(c.env.DB, id, rows);
+  const {list,invalid,missingNameRows}=preview;
   if (missingNameRows.length) return c.json({ error: missingNamesError(missingNameRows), code: "MISSING_IMPORT_NAMES", missingNameCount: missingNameRows.length, missingNameRows: missingNameRows.slice(0, 10), moreMissingNameRows: Math.max(0, missingNameRows.length - 10) }, 400);
 
+  if(!list.length) return c.json({error:"No valid phone numbers to import. Fix the listed rows and choose the file again.",code:"NO_VALID_IMPORT_CONTACTS",invalid},400);
   const name = str(body.importName, 120);
   if (!name) return c.json({ error: "Name this import before importing.", code: "IMPORT_NAME_REQUIRED" }, 400);
   const filename = str(body.filename, 255);
   const requestKey = str(body.requestId, 100) || newId("req");
-  const fingerprint = await importFingerprint({ name, filename, rows });
+  const fingerprint = await importFingerprint({ name, filename, sheetName:str(body.sheetName,120), rows, nameChoices: body.nameChoices || {} });
+  const previous = await one(c.env.DB,"SELECT * FROM contact_imports WHERE account_id=? AND request_key=?",id,requestKey);
+  if(previous){
+    if(previous.payload_hash !== fingerprint) return c.json({error:"This request was used for different import data.",code:"IMPORT_REQUEST_CONFLICT"},409);
+    if(previous.status === "completed") return c.json({...presentImport(previous),replayed:true});
+    return c.json({error:"This import is already started. Review its saved progress.",code:"IMPORT_ALREADY_STARTED",import:presentImport(previous)},409);
+  }
+  const unresolved = resolveImportNames(preview, body.nameChoices);
+  if (unresolved.length) return c.json({error:"Choose a name for every conflict. If contacts changed, review the refreshed choices.",code:"IMPORT_NAME_CONFLICTS",phones:unresolved},409);
   const batchId = newId("imp");
   const ts = nowIso();
   await run(c.env.DB, `INSERT INTO contact_imports(id,account_id,name,filename,request_key,payload_hash,status,source_rows,duplicates,invalid_json,created_at,updated_at)
@@ -119,6 +138,8 @@ contacts.post("/import", async (c) => {
     return c.json({ error: "This import is already started. Check its saved progress before starting another import.", code: "IMPORT_ALREADY_STARTED", import: presentImport(batch) }, 409);
   }
   try {
+    await run(c.env.DB,"UPDATE contact_imports SET name_choices_json=? WHERE id=? AND account_id=?",JSON.stringify(list.map(row=>({phone:row.phone,name:row.name,sourceRows:row.sourceRows}))),batch.id,id);
+    await run(c.env.DB,"UPDATE contact_imports SET sheet_name=? WHERE id=? AND account_id=?",str(body.sheetName,120),batch.id,id);
     await writeNamedImport(c.env.DB, batch, list);
   } catch {
     await run(c.env.DB, `UPDATE contact_imports SET status=CASE WHEN created_count+updated_count+unchanged_count>0 THEN 'partial' ELSE 'failed' END,error=?,updated_at=? WHERE id=? AND account_id=?`,

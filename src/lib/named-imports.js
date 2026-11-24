@@ -1,8 +1,8 @@
 import { run, newId, nowIso } from "./db.js";
 
 export function presentImport(row) {
-  return { id: row.id, name: row.name, filename: row.filename, status: row.status,
-    sourceRows: row.source_rows, created: row.created_count, updated: row.updated_count,
+  return { id: row.id, name: row.name, filename: row.filename, sheetName:row.sheet_name, status: row.status,
+    sourceRows: row.source_rows, nameChoices: JSON.parse(row.name_choices_json || "[]"), created: row.created_count, updated: row.updated_count,
     unchanged: row.unchanged_count, duplicatesInFile: row.duplicates,
     invalid: JSON.parse(row.invalid_json), error: row.error, createdAt: row.created_at };
 }

@@ -31,7 +31,7 @@ test("fully named imports still work and preserve suppression, invalid rows and 
   const client = await login(env, "import@test.in");
   await client.post("/api/contacts", { phone, name: "Existing" });
   env.DB.raw.exec("UPDATE contacts SET suppressed=1, suppressed_source='stop'");
-  const r = await client.post("/api/contacts/import", { importName: "Test import", rows: [
+  const r = await client.post("/api/contacts/import", { importName: "Test import", nameChoices:{"919876543210":{name:"Final",candidates:["Existing","Riya","Final"]}}, rows: [
     { phone, name: "Riya" }, { phone: "+91 98765 43210", name: "Final" },
     { phone: "9876543211", name: "Other" }, { phone: "bad", name: "Invalid" },
   ] });
@@ -112,11 +112,11 @@ test("only unrescued blank numbers block, with all their original row numbers", 
   assert.equal(env.DB.q("SELECT * FROM contacts").length, 0);
 });
 
-test("last nonblank duplicate name wins, never a trailing blank", async () => {
+test("explicit chosen duplicate name wins, never a trailing blank", async () => {
   const env = makeEnv();
   await createAccount(env, { login: "duplicate@test.in" });
   const client = await login(env, "duplicate@test.in");
-  const r = await client.post("/api/contacts/import", { importName: "Test import", rows: [
+  const r = await client.post("/api/contacts/import", { importName: "Test import", nameChoices:{"919876543210":{name:"Final",candidates:["First","Final"]}}, rows: [
     { phone, name: "First" }, { phone, name: "Final" }, { phone, name: "" },
   ] });
   assert.equal(r.status, 200);

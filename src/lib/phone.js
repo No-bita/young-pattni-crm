@@ -7,7 +7,7 @@ export function normalizePhone(raw, defaultCountryCode = "91") {
   if (raw === null || raw === undefined) throw new PhoneError("Phone number is required.");
   const str = String(raw).trim();
   if (!str) throw new PhoneError("Phone number is required.");
-  if (!/^[+\d\s\-().]+$/.test(str)) throw new PhoneError("Phone number contains invalid characters.");
+  if (!/^\+?[\d\s\-().]+$/.test(str)) throw new PhoneError("Phone number contains invalid characters.");
 
   let digits = str.replace(/\D/g, "");
   if (str.startsWith("+")) {
@@ -21,7 +21,7 @@ export function normalizePhone(raw, defaultCountryCode = "91") {
   } else if (digits.length === 12 && digits.startsWith("91")) {
     // Indian number written with country code but no '+'
   } else {
-    throw new PhoneError("Add the country code, e.g. +44 7700 900123.");
+    throw new PhoneError(`Indian numbers need 10 digits (found ${digits.length}). Use 10 local digits, 0 + 10 digits, or 91 + 10 digits. For another country, start with + or 00 and its country code.`);
   }
 
   // E.164: up to 15 digits; shortest real numbers with country code are ~8 digits.

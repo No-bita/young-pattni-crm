@@ -258,7 +258,7 @@ test("the sender test message respects suppression", async () => {
 });
 
 test("contact import: validates numbers, de-duplicates, never changes suppression", async () => {
-  const r = await a.post("/api/contacts/import", { importName: "Test import", rows: [{ phone: "9876543210", name: "A" }, { phone: "+91 98765 43210", name: "A2" }, { phone: "12", name: "bad" }, { phone: "+44 7700 900123", name: "UK" }] });
+  const r = await a.post("/api/contacts/import", { importName: "Test import", nameChoices:{"919876543210":{name:"A2",candidates:["A","A2"]}}, rows: [{ phone: "9876543210", name: "A" }, { phone: "+91 98765 43210", name: "A2" }, { phone: "12", name: "bad" }, { phone: "+44 7700 900123", name: "UK" }] });
   assert.equal(r.data.created, 2);
   assert.equal(r.data.invalid.length, 1);
   assert.equal(r.data.duplicatesInFile, 1);

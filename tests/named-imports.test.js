@@ -9,8 +9,8 @@ test("name required before writes; legacy contacts have no invented batch",async
 });
 test("membership supports many batches, outcomes, search/filter/counts/ids and isolation",async()=>{
  const {env,a,b}=await setup();const first=await a.post('/api/contacts/import',{importName:'Youth November',filename:'one.csv',rows});assert.equal(first.status,200,JSON.stringify(first));assert.equal(first.data.created,2);
- const second=await a.post('/api/contacts/import',{importName:'Camp December',rows:[{...rows[0],name:'Riya S'}]});assert.equal(second.status,200);assert.equal(second.data.updated,1);
- const third=await a.post('/api/contacts/import',{importName:'Same again',rows});assert.equal(third.data.updated,1);assert.equal(third.data.unchanged,1);
+ const second=await a.post('/api/contacts/import',{importName:'Camp December',nameChoices:{'919876543210':{name:'Riya S',candidates:['Riya','Riya S']}},rows:[{...rows[0],name:'Riya S'}]});assert.equal(second.status,200);assert.equal(second.data.updated,1);
+ const third=await a.post('/api/contacts/import',{importName:'Same again',nameChoices:{'919876543210':{name:'Riya',candidates:['Riya','Riya S']}},rows});assert.equal(third.data.updated,1);assert.equal(third.data.unchanged,1);
  assert.equal((await a.get('/api/contacts?batchName=Youth')).data.total,2);assert.equal((await a.get('/api/contacts?importId='+second.data.id)).data.total,1);assert.equal((await a.get('/api/contacts?importId='+first.data.id+'&q=Mona')).data.total,1);
  assert.equal((await a.get('/api/contacts/imports?q=December')).data.total,1);assert.equal((await b.get('/api/contacts/imports')).data.total,0);assert.equal((await b.get('/api/contacts/imports/'+first.data.id)).status,404);assert.equal((await b.get('/api/contacts?importId='+first.data.id)).data.total,0);
  const cid=env.DB.q("SELECT id FROM contacts WHERE name='Mona'")[0].id;env.DB.raw.prepare('UPDATE contacts SET suppressed=1 WHERE id=?').run(cid);
