@@ -35,7 +35,7 @@ beforeEach(async () => {
 
 const tpl = async (client, name) => (await client.get("/api/templates")).data.templates.find((t) => t.name === name);
 const contacts = async (client, n) => {
-  await client.post("/api/contacts/import", { rows: Array.from({ length: n }, (_, i) => ({ phone: `98200000${String(i).padStart(2, "0")}`, name: i ? `N${i}` : "" })) });
+  for (let i = 0; i < n; i++) await client.post("/api/contacts", { phone: `98200000${String(i).padStart(2, "0")}`, name: i ? `N${i}` : "" });
   return (await client.get("/api/contacts?limit=200")).data.contacts;
 };
 const upload = (client, bytes = png(), opts) => client.upload("/api/media", bytes, opts);

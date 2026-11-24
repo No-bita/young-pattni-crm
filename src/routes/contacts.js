@@ -3,6 +3,8 @@ import { all, one, run, newId, nowIso } from "../lib/db.js";
 import { normalizePhone, PhoneError, formatPhone } from "../lib/phone.js";
 import { accountId, readJson, str, intEnv } from "../lib/http.js";
 
+import { prepareContactImport, missingNamesError } from "../lib/contact-import.js";
+
 const contacts = new Hono();
 const MAX_IMPORT_ROWS = 5000;
 
@@ -87,21 +89,12 @@ contacts.post("/import", async (c) => {
   if (rows.length > MAX_IMPORT_ROWS) return c.json({ error: `Import at most ${MAX_IMPORT_ROWS} rows at a time.` }, 400);
 
   const id = accountId(c);
-  const invalid = [];
-  const seen = new Map();
-  rows.forEach((row, i) => {
-    try {
-      const phone = normalizePhone(row?.phone);
-      seen.set(phone, { phone, name: str(row?.name, 120), row: i + 1 });
-    } catch (e) {
-      invalid.push({ row: i + 1, phone: str(row?.phone, 40), error: e instanceof PhoneError ? e.message : "Invalid row." });
-    }
-  });
+  const { list, invalid, missingNameRows } = prepareContactImport(rows);
+  if (missingNameRows.length) return c.json({ error: missingNamesError(missingNameRows), code: "MISSING_IMPORT_NAMES", missingNameCount: missingNameRows.length, missingNameRows: missingNameRows.slice(0, 10), moreMissingNameRows: Math.max(0, missingNameRows.length - 10) }, 400);
 
   let created = 0;
   let updated = 0;
   const ts = nowIso();
-  const list = [...seen.values()];
   for (let i = 0; i < list.length; i += 50) {
     const chunk = list.slice(i, i + 50);
     const stmts = [];

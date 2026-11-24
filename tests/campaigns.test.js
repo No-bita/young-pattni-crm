@@ -19,8 +19,7 @@ beforeEach(async () => {
 
 async function contacts(n, prefix = "98100000") {
   const rows = Array.from({ length: n }, (_, i) => ({ phone: `${prefix}${String(i).padStart(2, "0")}`, name: i % 2 ? `Name ${i}` : "" }));
-  const r = await a.post("/api/contacts/import", { rows });
-  assert.equal(r.status, 200);
+  for (const row of rows) assert.equal((await a.post("/api/contacts", row)).status, 201);
   return (await a.get("/api/contacts?limit=200")).data.contacts;
 }
 
