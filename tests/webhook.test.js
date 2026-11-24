@@ -118,7 +118,7 @@ test("opt-out 'stop' suppresses, 'resume' lifts it, scoped to the receiving numb
 
 test("a 'stop' for an unknown number creates a suppressed contact, so a later import cannot unsuppress it", async () => {
   await signedWebhook(env, waPayload(PA, { user_preferences: [{ wa_id: "919844444444", category: "marketing_messages", value: "stop" }] }));
-  await a.post("/api/contacts/import", { rows: [{ phone: "9844444444", name: "Imported" }] });
+  await a.post("/api/contacts/import", { importName: "Test import", rows: [{ phone: "9844444444", name: "Imported" }] });
   const row = env.DB.q("SELECT suppressed FROM contacts WHERE phone_e164 = '919844444444' AND account_id = 'acc_atestin'")[0];
   assert.equal(row.suppressed, 1);
 });

@@ -40,7 +40,7 @@ async function draftWithImage(n = 1) {
   const asset = (await a.upload("/api/media", png())).data.asset;
   const cmp = await a.post("/api/campaigns", { name: "Camp", templateId: t.id, params: [{ type: "contact_name", fallback: "there" }], mediaAssetId: asset.id });
   assert.equal(cmp.status, 201, JSON.stringify(cmp.data));
-  await a.post("/api/contacts/import", { rows: Array.from({ length: n }, (_, i) => ({ phone: `98300000${String(i).padStart(2, "0")}`, name: `N${i}` })) });
+  await a.post("/api/contacts/import", { importName: "Test import", rows: Array.from({ length: n }, (_, i) => ({ phone: `98300000${String(i).padStart(2, "0")}`, name: `N${i}` })) });
   const ids = (await a.get("/api/contacts?limit=200")).data.contacts.map((c) => c.id);
   await a.put(`/api/campaigns/${cmp.data.campaign.id}/audience`, { contactIds: ids });
   return { id: cmp.data.campaign.id, n: ids.length, t };

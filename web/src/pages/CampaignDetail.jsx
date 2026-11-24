@@ -5,15 +5,18 @@ import { previewBody } from "./CampaignNew.jsx";
 import { ImageUpload, MessageBubble } from "../components/media.jsx";
 import { campaignSummary } from "../campaign-summary.js";
 
+import ImportBatchFilter from "../components/ImportBatchFilter.jsx";
+
 const TONE = { completed: "g", sending: "a", scheduled: "a", draft: "n", cancelled: "n" };
 const LABEL = { completed: "Completed", sending: "Sending", scheduled: "Scheduled", draft: "Draft", cancelled: "Cancelled" };
 
 function AudienceStep({ campaign, initialIds, onSaved }) {
   const [selected, setSelected] = useState(() => new Set(initialIds || []));
   const [q, setQ] = useState("");
+  const [importId, setImportId] = useState("");
   const [page, setPage] = useState(0);
   const limit = 50;
-  const list = useApi(`/contacts?q=${encodeURIComponent(q)}&filter=all&limit=${limit}&offset=${page * limit}`, [q, page]);
+  const list = useApi(`/contacts?q=${encodeURIComponent(q)}&importId=${encodeURIComponent(importId)}&filter=all&limit=${limit}&offset=${page * limit}`, [q, page, importId]);
   const action = useAction();
   const [note, setNote] = useState(null);
 
@@ -24,8 +27,10 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
   };
 
   const selectAllMatching = () => action.run(async () => {
-    const res = await api(`/contacts/ids?q=${encodeURIComponent(q)}`);
-    setSelected(new Set([...selected, ...res.ids]));
+    const res = await api(`/contacts/ids?q=${encodeURIComponent(q)}&importId=${encodeURIComponent(importId)}`);
+    const union = new Set([...selected, ...res.ids]);
+    if (union.size > res.cap) throw new Error(`Select at most ${res.cap} contacts across all batches.`);
+    setSelected(union);
     setNote(res.truncated ? `Only the first ${res.cap} matching contacts were added: a campaign can reach at most ${res.cap}.` : `Added ${res.ids.length} contacts.`);
   });
 
@@ -39,6 +44,7 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
       <div className="head"><h1>Who receives it</h1><span className="small faint">2 of 3</span></div>
       <ErrorBox error={action.error || list.error} />
       {note && <div className="alert ok">{note}</div>}
+      <div className="card"><ImportBatchFilter value={importId} onChange={(id) => { setImportId(id); setPage(0); setNote(null); }} /><div className="small mut" style={{ marginTop: 8 }}>Select all matching adds eligible contacts from this batch to your selection. Opted-out contacts are excluded. The saved audience is a fixed list, not a live batch.</div></div>
       <div className="row" style={{ marginBottom: 12, flexWrap: "nowrap" }}>
         <input className="grow" placeholder="Search name or number" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
       </div>
@@ -48,7 +54,7 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
         <b className="grow" style={{ textAlign: "right" }}>{selected.size} selected</b>
       </div>
       {list.loading && !list.data ? <Loading /> : list.data && list.data.contacts.length === 0 ? (
-        <div className="card"><Empty>{q ? "No contacts match." : <>No contacts yet. <a href="#/contacts">Add or import contacts</a> first.</>}</Empty></div>
+        <div className="card"><Empty>{q || importId ? "No contacts match." : <>No contacts yet. <a href="#/contacts">Add or import contacts</a> first.</>}</Empty></div>
       ) : list.data && (
         <div className="card" style={{ padding: "6px 16px" }}>
           {list.data.contacts.map((c) => (
