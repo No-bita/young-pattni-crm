@@ -112,6 +112,7 @@ contacts.post("/import", async (c) => {
   const {list,invalid,missingNameRows}=preview;
   if (missingNameRows.length) return c.json({ error: missingNamesError(missingNameRows), code: "MISSING_IMPORT_NAMES", missingNameCount: missingNameRows.length, missingNameRows: missingNameRows.slice(0, 10), moreMissingNameRows: Math.max(0, missingNameRows.length - 10) }, 400);
 
+  if(!list.length) return c.json({error:"No valid phone numbers to import. Fix the listed rows and choose the file again.",code:"NO_VALID_IMPORT_CONTACTS",invalid},400);
   const name = str(body.importName, 120);
   if (!name) return c.json({ error: "Name this import before importing.", code: "IMPORT_NAME_REQUIRED" }, 400);
   const filename = str(body.filename, 255);

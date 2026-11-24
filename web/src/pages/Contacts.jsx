@@ -1,12 +1,15 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { defaultImportName } from "../lib/importName.js";
 import { readContactFile, contactSheetRows } from "../lib/contactFile.js";
 import { api, fmtDate } from "../api.js";
 import { Ava, Empty, ErrorBox, Loading, Strip, useAction, useApi } from "../components/ui.jsx";
 
+import ListPagination from "../components/ListPagination.jsx";
+import { pageInfo } from "../lib/pagination.js";
 import ImportBatchFilter from "../components/ImportBatchFilter.jsx";
 
 function Importer({ onDone }) {
-  const [importName, setImportName] = useState("");
+  const [importName, setImportName] = useState(() => defaultImportName());
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const selection = useRef(0);
   const [preview, setPreview] = useState(null);
@@ -177,6 +180,7 @@ export default function Contacts() {
   const limit = 50;
   const path = useMemo(() => `/contacts?q=${encodeURIComponent(q)}&importId=${encodeURIComponent(importId)}&filter=${filter}&limit=${limit}&offset=${page * limit}`, [q, filter, page, importId]);
   const { data, error, loading, reload } = useApi(path);
+  useEffect(() => { if (data && !loading) { const safe = pageInfo(data.total, page).page; if (safe !== page) setPage(safe); } }, [data,loading,page]);
 
   return (
     <>
@@ -223,13 +227,10 @@ export default function Contacts() {
                 </div>
               ))}
             </div>
-            <div className="row" style={{ marginTop: 12 }}>
-              <span className="mut grow">{data.total} contacts</span>
-              <button className="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
-              <button className="secondary" disabled={(page + 1) * limit >= data.total} onClick={() => setPage(page + 1)}>Next</button>
-            </div>
+
           </>
         )}
+        {data && <ListPagination total={data.total} page={page} onPage={setPage} noun="contacts" busy={loading} />}
       </div>
     </>
   );

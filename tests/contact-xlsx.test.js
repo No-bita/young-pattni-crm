@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import {prepareContactImport} from '../src/lib/contact-import.js';
 import { readContactFile, contactSheetRows } from '../web/src/lib/contactFile.js';
 const file = (name, bytes) => ({name, size: bytes.length, arrayBuffer: async () => bytes, text: async () => String(bytes)});
 test('reads real XLSX, preserves sheets, numeric phones and original row numbers', async () => {
@@ -19,7 +20,7 @@ test('CSV still works; corrupt, old-format, oversize and empty inputs are reject
   assert.match(contactSheetRows({data:[]}).error, /empty/);
 });
 test('unsafe numeric, date and boolean phone cells reject, but blank duplicate is rescued', () => {
-  for (const value of [1.23,Number.MAX_SAFE_INTEGER+1,new Date(),true]) assert.ok(contactSheetRows({data:[['phone','name'],[value,'Test']]}).error);
+  for (const value of [1.23,Number.MAX_SAFE_INTEGER+1,new Date(),true]) { const parsed=contactSheetRows({data:[['phone','name'],[value,'Test'],['9876543210','Riya']]}); assert.equal(parsed.error,undefined); const checked=prepareContactImport(parsed.rows); assert.equal(checked.invalid.length,1); assert.equal(checked.list.length,1); }
   const out = contactSheetRows({data:[['phone','name'],['9876543210',''],['9876543210','Named']]});
   assert.equal(out.error,undefined);
   assert.equal(out.rows.length,2);

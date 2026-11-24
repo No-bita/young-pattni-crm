@@ -33,10 +33,14 @@ export async function readContactFile(file) {
 export function contactSheetRows(sheet) {
   try {
     const headers = (sheet.data[0] || []).map((value) => String(value ?? "").trim().toLowerCase());
+    const phoneColumns = headers.map((header,index)=>["phone", "mobile", "number", "phone number", "whatsapp"].includes(header)?index:-1).filter(index=>index>=0);
     const columns = headers.map((header, index) => ["phone", "mobile", "number", "phone number", "whatsapp", "name", "full name", "contact name"].includes(header) ? index : -1).filter((index) => index >= 0);
     const table = sheet.data.map((row, rowIndex) => row.map((value, columnIndex) => {
       if (rowIndex > 0 && !columns.includes(columnIndex)) return "";
       if (value == null) return "";
+      // Bad phone cells become invalid rows, not a whole-file error. Do not round
+      // unsafe numbers or stringify a date as a plausible phone number.
+      if (rowIndex > 0 && phoneColumns.includes(columnIndex) && typeof value !== "string" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)) return "[invalid phone cell: use text or a whole number]";
       if (typeof value === "number") {
         if (!Number.isSafeInteger(value) || value < 0) throw new Error("Use text cells for phone numbers. A numeric cell is not a safe whole number.");
         return String(value);
