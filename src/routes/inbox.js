@@ -1,23 +1,31 @@
 import { presentInboundMedia } from "../lib/inbound-media.js";
 import { Hono } from "hono";
 import { all, one } from "../lib/db.js";
-import { accountId, readJson } from "../lib/http.js";
+import { INBOX_FILTERS } from "../lib/inbox-filters.js";
+import { accountId, readJson, str } from "../lib/http.js";
 import { sendToContact, isWindowOpen } from "../lib/send.js";
 import { formatPhone } from "../lib/phone.js";
 
 const inbox = new Hono();
 
 inbox.get("/", async (c) => {
-  const rows = await all(
-    c.env.DB,
-    `SELECT ct.*, (SELECT m.body FROM messages m WHERE m.account_id = ct.account_id AND m.contact_id = ct.id ORDER BY m.created_at DESC LIMIT 1) AS last_body,
-            (SELECT m.direction FROM messages m WHERE m.account_id = ct.account_id AND m.contact_id = ct.id ORDER BY m.created_at DESC LIMIT 1) AS last_direction,
-            (SELECT m.status FROM messages m WHERE m.account_id = ct.account_id AND m.contact_id = ct.id ORDER BY m.created_at DESC LIMIT 1) AS last_status
-       FROM contacts ct WHERE ct.account_id = ? AND ct.last_message_at IS NOT NULL
-      ORDER BY ct.last_message_at DESC LIMIT 200`,
-    accountId(c),
-  );
-  return c.json({
+  const filter = c.req.query("status") || "all";
+  if (!INBOX_FILTERS.includes(filter)) return c.json({ error: "Unknown Inbox status filter." },400);
+  const q = str(c.req.query("q"),100).toLowerCase();
+  const limit = Math.min(Math.max(Number(c.req.query("limit")) || 50,1),200);
+  const offset = Math.max(Number(c.req.query("offset")) || 0,0);
+  const latest = `WITH latest AS (SELECT ct.*,
+    (SELECT m.body FROM messages m WHERE m.account_id=ct.account_id AND m.contact_id=ct.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1) AS last_body,
+    (SELECT m.direction FROM messages m WHERE m.account_id=ct.account_id AND m.contact_id=ct.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1) AS last_direction,
+    (SELECT m.status FROM messages m WHERE m.account_id=ct.account_id AND m.contact_id=ct.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1) AS last_status
+    FROM contacts ct WHERE ct.account_id=? AND ct.last_message_at IS NOT NULL AND (instr(lower(ct.name),?)>0 OR (?<>'' AND instr(ct.phone_e164,?)>0)))`;
+  const digits = q.replace(/[^0-9]/g, "");
+  const args = [accountId(c),q,digits,digits];
+  const conditions = { all: "1=1", opted_out: "suppressed<>0", replied: "last_direction='inbound'", sent: "last_direction='outbound' AND last_status='sent'", delivered: "last_direction='outbound' AND last_status='delivered'", read: "last_direction='outbound' AND last_status='read'", failed: "last_direction='outbound' AND last_status='failed'" };
+  const countColumns = INBOX_FILTERS.map((f) => `COALESCE(SUM(CASE WHEN ${conditions[f]} THEN 1 ELSE 0 END),0) AS "${f}"`).join(",");
+  const counts = await one(c.env.DB, `${latest} SELECT ${countColumns} FROM latest`, ...args);
+  const rows = await all(c.env.DB, `${latest} SELECT * FROM latest WHERE ${conditions[filter]} ORDER BY last_message_at DESC,id LIMIT ? OFFSET ?`, ...args,limit,offset);
+  return c.json({ counts, total: counts[filter], limit, offset,
     conversations: rows.map((r) => ({
       contactId: r.id, name: r.name, phone: formatPhone(r.phone_e164), suppressed: Boolean(r.suppressed),
       lastMessageAt: r.last_message_at, lastBody: r.last_body, lastDirection: r.last_direction, lastStatus: r.last_status,
