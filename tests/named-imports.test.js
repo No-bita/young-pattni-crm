@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeEnv, createAccount, login } from "./helpers.js";
+import { makeEnv, createAccount, login, makeGraph, setupSender } from "./helpers.js";
 const rows=[{phone:"9876543210",name:"Riya",sourceRow:4},{phone:"9876543211",name:"Mona",sourceRow:6}];
 async function setup(){const env=makeEnv();await createAccount(env,{login:"batch@test.in"});await createAccount(env,{login:"other@test.in"});return {env,a:await login(env,"batch@test.in"),b:await login(env,"other@test.in")};}
 test("name required before writes; legacy contacts have no invented batch",async()=>{
@@ -26,4 +26,19 @@ test("later chunk failure preserves committed progress and prevents accidental r
 });
 test("batch selection refuses overflow instead of silently truncating",async()=>{
  const {env,a}=await setup();const r=await a.post('/api/contacts/import',{importName:'Two',rows});env.MAX_CAMPAIGN_AUDIENCE='1';const ids=await a.get('/api/contacts/ids?importId='+r.data.id);assert.equal(ids.status,400);assert.equal(ids.data.code,'AUDIENCE_TOO_LARGE');
+});
+
+
+test("batch-selected IDs are saved as a fixed campaign audience", async () => {
+ const {env,a}=await setup();const graph=makeGraph();globalThis.fetch=graph.fetch;
+ await setupSender(a,graph,env,{ref:"BATCH",phoneNumberId:"100000000001",wabaId:"900000001",display:"+919000000001"});
+ const template=(await a.get('/api/templates')).data.templates[0];
+ const campaign=await a.post('/api/campaigns',{name:'Batch campaign',templateId:template.id,params:[{type:'contact_name',fallback:'there'}]});
+ assert.equal(campaign.status,201);
+ const imported=await a.post('/api/contacts/import',{importName:'Audience',rows});
+ const ids=(await a.get('/api/contacts/ids?importId='+imported.data.id)).data.ids;
+ assert.equal((await a.put('/api/campaigns/'+campaign.data.campaign.id+'/audience',{contactIds:ids})).status,200);
+ await a.post('/api/contacts/import',{importName:'Later',rows:[{phone:'9876543212',name:'Later'}]});
+ const saved=await a.get('/api/campaigns/'+campaign.data.campaign.id);
+ assert.deepEqual([...saved.data.audienceIds].sort(),[...ids].sort());
 });

@@ -86,7 +86,7 @@ for (const rows of [
     const env = makeEnv();
     await createAccount(env, { login: "duplicate@test.in" });
     const client = await login(env, "duplicate@test.in");
-    const r = await client.post("/api/contacts/import", { rows });
+    const r = await client.post("/api/contacts/import", { importName: "Test import", rows });
     assert.equal(r.status, 200);
     assert.equal(r.data.created, 1);
     assert.equal(r.data.duplicatesInFile, 1);
@@ -106,7 +106,7 @@ test("only unrescued blank numbers block, with all their original row numbers", 
     { phone: "+91 98765 43211", name: "", sourceRow: 9 },
     { phone: "invalid", name: "Someone", sourceRow: 10 },
   ];
-  const r = await client.post("/api/contacts/import", { rows });
+  const r = await client.post("/api/contacts/import", { importName: "Test import", rows });
   assert.equal(r.status, 400);
   assert.deepEqual(r.data.missingNameRows, [5,9]);
   assert.equal(env.DB.q("SELECT * FROM contacts").length, 0);
@@ -116,7 +116,7 @@ test("last nonblank duplicate name wins, never a trailing blank", async () => {
   const env = makeEnv();
   await createAccount(env, { login: "duplicate@test.in" });
   const client = await login(env, "duplicate@test.in");
-  const r = await client.post("/api/contacts/import", { rows: [
+  const r = await client.post("/api/contacts/import", { importName: "Test import", rows: [
     { phone, name: "First" }, { phone, name: "Final" }, { phone, name: "" },
   ] });
   assert.equal(r.status, 200);
