@@ -1,0 +1,12 @@
+
+.contacts-filter-row { display:flex;gap:10px;align-items:flex-start; }
+.contacts-filter-row > input { min-width:0;flex:1; }
+.contacts-filter { position:relative;flex:1;min-width:200px; }
+.contacts-filter-toggle { width:100%;display:flex;justify-content:space-between;gap:12px;text-align:left;overflow-wrap:anywhere; }
+.contacts-filter-options { position:absolute;top:calc(100% + 6px);right:0;width:100%;max-height:min(480px,65vh);overflow-y:auto;overscroll-behavior:contain;background:#fff;border:1px solid #e5e0d8;border-radius:14px;padding:8px;box-shadow:0 8px 24px #0002;z-index:20; }
+.contacts-filter-option { display:block;width:100%;padding:12px;border:0;background:transparent;color:inherit;text-align:left;border-radius:8px;overflow-wrap:anywhere; }
+.contacts-filter-option:hover,.contacts-filter-option:focus-visible { background:#f4f1ec; }
+.contacts-filter-option[aria-pressed="true"] { background:#eeebe6; }
+.contacts-filter-option > span { display:block;margin-top:3px; }
+.contacts-filter-heading { border-top:1px solid #eee;margin-top:6px;padding:12px 12px 5px; }
+@media(max-width:600px) { .contacts-filter-row { flex-direction:column;align-items:stretch; }.contacts-filter { min-width:0;width:100%; }.contacts-filter-row > input { width:100%; } }

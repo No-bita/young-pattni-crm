@@ -6,7 +6,7 @@ import { Ava, Empty, ErrorBox, Loading, Strip, useAction, useApi } from "../comp
 
 import ListPagination from "../components/ListPagination.jsx";
 import { pageInfo } from "../lib/pagination.js";
-import ImportBatchFilter from "../components/ImportBatchFilter.jsx";
+import ContactsFilter from "../components/ContactsFilter.jsx";
 
 function Importer({ onDone }) {
   const [importName, setImportName] = useState(() => defaultImportName());
@@ -195,14 +195,9 @@ export default function Contacts() {
       {panel === "add" && <AddContact onDone={reload} />}
       {panel === "import" && <Importer onDone={() => { reload(); setImportRefresh((n) => n + 1); }} />}
       <div className="card">
-        <ImportBatchFilter value={importId} refreshKey={importRefresh} onChange={(id) => { setImportId(id); setPage(0); }} />
-        <div className="row" style={{ marginBottom: 8, marginTop: 12 }}>
-          <input className="grow" placeholder="Search name or number" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
-          <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(0); }}>
-            <option value="all">All contacts</option>
-            <option value="active">Can be messaged</option>
-            <option value="suppressed">Opted out</option>
-          </select>
+        <div className="contacts-filter-row" style={{ marginBottom: 8 }}>
+          <input className="grow" placeholder="Search name or number" aria-label="Search name or number" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+          <ContactsFilter value={{filter,importId}} refreshKey={importRefresh} onChange={(next)=>{setFilter(next.filter);setImportId(next.importId);setPage(0);}} />
         </div>
         <ErrorBox error={error} onRetry={reload} />
         {loading && !data ? <Loading /> : data && data.contacts.length === 0 ? (
