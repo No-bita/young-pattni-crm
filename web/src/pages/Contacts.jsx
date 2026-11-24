@@ -3,7 +3,11 @@ import { parseCsv, toImportRows } from "../lib/contactCsv.js";
 import { api, fmtDate } from "../api.js";
 import { Ava, Empty, ErrorBox, Loading, Strip, useAction, useApi } from "../components/ui.jsx";
 
+import ImportBatchFilter from "../components/ImportBatchFilter.jsx";
+
 function Importer({ onDone }) {
+  const [importName, setImportName] = useState("");
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [parsed, setParsed] = useState(null);
   const [result, setResult] = useState(null);
   const { busy, error, run, setError } = useAction();
@@ -11,6 +15,7 @@ function Importer({ onDone }) {
   const onFile = async (e) => {
     setResult(null);
     setParsed(null);
+    setRequestId(crypto.randomUUID());
     setError(null);
     const file = e.target.files?.[0];
     if (!file) return;
@@ -20,7 +25,13 @@ function Importer({ onDone }) {
   };
 
   const submit = () => run(async () => {
-    const res = await api("/contacts/import", { method: "POST", body: { rows: parsed.rows } });
+    let res;
+    try {
+      res = await api("/contacts/import", { method: "POST", body: { rows: parsed.rows, importName, filename: parsed.name, requestId } });
+    } catch (e) {
+      if (e.data?.import) { setResult(e.data.import); setParsed(null); onDone(); }
+      throw e;
+    }
     setResult(res);
     setParsed(null);
     onDone();
@@ -30,6 +41,7 @@ function Importer({ onDone }) {
     <div className="card">
       <h2>Import CSV</h2>
       <div className="stack">
+        <label className="field"><span>Import name</span><input required maxLength={120} placeholder="e.g. November youth outreach" value={importName} onChange={(e) => { setImportName(e.target.value); setRequestId(crypto.randomUUID()); }} /></label>
         <input type="file" accept=".csv,text/csv" onChange={onFile} />
         <ErrorBox error={error} />
         {parsed && (
@@ -42,13 +54,15 @@ function Importer({ onDone }) {
               </table>
             </div>
             <div className="mut small">Numbers without a country code are treated as Indian (+91). Contacts who opted out stay opted out.</div>
-            <div><button disabled={busy} onClick={submit}>{busy ? "Importing…" : `Import ${parsed.rows.length} rows`}</button></div>
+            <div><button disabled={busy || !importName.trim()} onClick={submit}>{busy ? "Importing…" : `Import ${parsed.rows.length} rows`}</button></div>
           </>
         )}
         {result && (
           <div className={`alert ${result.invalid.length ? "warn" : "ok"}`}>
-            {result.created} added, {result.updated} updated, {result.unchanged} unchanged
+            <b>{result.name}</b> · {result.status}
+            <div>{result.created} added, {result.updated} updated, {result.unchanged} unchanged
             {result.duplicatesInFile ? `, ${result.duplicatesInFile} duplicate rows ignored` : ""}.
+            </div>
             {result.invalid.length > 0 && (
               <>
                 {" "}{result.invalid.length} rows were not imported:
@@ -90,11 +104,13 @@ function AddContact({ onDone }) {
 
 export default function Contacts() {
   const [q, setQ] = useState("");
+  const [importId, setImportId] = useState("");
+  const [importRefresh, setImportRefresh] = useState(0);
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [panel, setPanel] = useState(null);
   const limit = 50;
-  const path = useMemo(() => `/contacts?q=${encodeURIComponent(q)}&filter=${filter}&limit=${limit}&offset=${page * limit}`, [q, filter, page]);
+  const path = useMemo(() => `/contacts?q=${encodeURIComponent(q)}&importId=${encodeURIComponent(importId)}&filter=${filter}&limit=${limit}&offset=${page * limit}`, [q, filter, page, importId]);
   const { data, error, loading, reload } = useApi(path);
 
   return (
@@ -108,9 +124,10 @@ export default function Contacts() {
       </div>
 
       {panel === "add" && <AddContact onDone={reload} />}
-      {panel === "import" && <Importer onDone={reload} />}
+      {panel === "import" && <Importer onDone={() => { reload(); setImportRefresh((n) => n + 1); }} />}
       <div className="card">
-        <div className="row" style={{ marginBottom: 8 }}>
+        <ImportBatchFilter value={importId} refreshKey={importRefresh} onChange={(id) => { setImportId(id); setPage(0); }} />
+        <div className="row" style={{ marginBottom: 8, marginTop: 12 }}>
           <input className="grow" placeholder="Search name or number" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
           <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(0); }}>
             <option value="all">All contacts</option>
@@ -120,7 +137,7 @@ export default function Contacts() {
         </div>
         <ErrorBox error={error} onRetry={reload} />
         {loading && !data ? <Loading /> : data && data.contacts.length === 0 ? (
-          <Empty>{q || filter !== "all" ? "No contacts match." : "No contacts yet. Add one or import a CSV."}</Empty>
+          <Empty>{q || importId || filter !== "all" ? "No contacts match." : "No contacts yet. Add one or import a CSV."}</Empty>
         ) : data && (
           <>
             <div>

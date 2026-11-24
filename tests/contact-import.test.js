@@ -17,7 +17,7 @@ for (const [label, rows] of [
     await client.post("/api/contacts", { phone, name: "Existing" });
     const before = env.DB.q("SELECT * FROM contacts");
     env.DB.batch = () => { throw new Error("Rejected import must not write a batch"); };
-    const result = await client.post("/api/contacts/import", { rows });
+    const result = await client.post("/api/contacts/import", { importName: "Test import", rows });
     assert.equal(result.status, 400);
     assert.equal(result.data.error, missingNamesError([rows.findIndex((r) => !r.name?.trim()) + 2]));
     assert.equal(result.data.code, "MISSING_IMPORT_NAMES");
@@ -31,7 +31,7 @@ test("fully named imports still work and preserve suppression, invalid rows and 
   const client = await login(env, "import@test.in");
   await client.post("/api/contacts", { phone, name: "Existing" });
   env.DB.raw.exec("UPDATE contacts SET suppressed=1, suppressed_source='stop'");
-  const r = await client.post("/api/contacts/import", { rows: [
+  const r = await client.post("/api/contacts/import", { importName: "Test import", rows: [
     { phone, name: "Riya" }, { phone: "+91 98765 43210", name: "Final" },
     { phone: "9876543211", name: "Other" }, { phone: "bad", name: "Invalid" },
   ] });
@@ -69,7 +69,7 @@ test("API reports original spreadsheet rows and caps the list at ten before any 
   await createAccount(env, { login: "rows@test.in" });
   const client = await login(env, "rows@test.in");
   const rows = Array.from({ length: 12 }, (_, i) => ({ phone, name: "", sourceRow: i + 5 }));
-  const r = await client.post("/api/contacts/import", { rows });
+  const r = await client.post("/api/contacts/import", { importName: "Test import", rows });
   assert.equal(r.status, 400);
   assert.equal(r.data.missingNameCount, 12);
   assert.deepEqual(r.data.missingNameRows, [5,6,7,8,9,10,11,12,13,14]);

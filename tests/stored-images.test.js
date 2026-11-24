@@ -29,7 +29,7 @@ async function draft(assetId, n = 1) {
   const t = (await a.get("/api/templates")).data.templates.find((x) => x.name === "promo_image");
   const cmp = await a.post("/api/campaigns", { name: "Img", templateId: t.id, params: [{ type: "contact_name", fallback: "there" }], mediaAssetId: assetId });
   assert.equal(cmp.status, 201, JSON.stringify(cmp.data));
-  await a.post("/api/contacts/import", { rows: Array.from({ length: n }, (_, i) => ({ phone: `98400000${String(i).padStart(2, "0")}`, name: `N${i}` })) });
+  await a.post("/api/contacts/import", { importName: "Test import", rows: Array.from({ length: n }, (_, i) => ({ phone: `98400000${String(i).padStart(2, "0")}`, name: `N${i}` })) });
   const ids = (await a.get("/api/contacts?limit=200")).data.contacts.map((c) => c.id);
   await a.put(`/api/campaigns/${cmp.data.campaign.id}/audience`, { contactIds: ids });
   return { id: cmp.data.campaign.id, n: ids.length };

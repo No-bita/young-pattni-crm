@@ -23,7 +23,7 @@ export function prepareContactImport(rows) {
         if (!blankRows.has(phone)) blankRows.set(phone, []);
         blankRows.get(phone).push(sourceRow);
       }
-      if (name || !seen.has(phone)) seen.set(phone, { phone, name, row: i + 1 });
+      if (name || !seen.has(phone)) seen.set(phone, { phone, name, row: i + 1, sourceRow: Number.isSafeInteger(row?.sourceRow) && row.sourceRow >= 2 ? row.sourceRow : i + 2 });
     } catch (e) {
       invalid.push({ row: i + 1, phone: text(row?.phone, 40), error: e instanceof PhoneError ? e.message : "Invalid row." });
     }
