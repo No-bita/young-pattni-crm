@@ -72,14 +72,21 @@ async function applyInbound(env, sender, ev) {
      VALUES (?, ?, ?, ?, 'inbound', 'inbound', ?, ?, 'received', ?, ?) ON CONFLICT(sender_id, wamid) WHERE wamid IS NOT NULL DO NOTHING`,
     messageId, sender.account_id, contact.id, sender.id, ev.text, ev.wamid, at, nowIso(),
   );
-  if (!inserted) return; // duplicate delivery from Meta's retries
-  if (ev.media) await recordInboundMedia(env, sender, messageId, ev.media, at);
+  // A previous delivery may have stored the message but failed before its related writes.
+  // Repair those writes on retries, using the original message's identity and timestamp.
+  const stored = inserted ? { id: messageId, contact_id: contact.id, created_at: at } : await one(
+    db,
+    "SELECT id, contact_id, created_at FROM messages WHERE account_id = ? AND sender_id = ? AND wamid = ? AND direction = 'inbound'",
+    sender.account_id, sender.id, ev.wamid,
+  );
+  if (!stored) return;
+  if (ev.media) await recordInboundMedia(env, sender, stored.id, ev.media, stored.created_at);
   await run(
     db,
     `UPDATE contacts SET last_inbound_at = MAX(COALESCE(last_inbound_at, ''), ?), last_message_at = MAX(COALESCE(last_message_at, ''), ?),
             name = CASE WHEN name = '' THEN ? ELSE name END, updated_at = ?
       WHERE id = ? AND account_id = ?`,
-    at, at, ev.profileName || "", nowIso(), contact.id, sender.account_id,
+    stored.created_at, stored.created_at, ev.profileName || "", nowIso(), stored.contact_id, sender.account_id,
   );
 }
 

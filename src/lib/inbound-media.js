@@ -10,17 +10,18 @@ export const INBOUND_DOWNLOAD_TIMEOUT_MS = 20 * 1000;
 export const INBOUND_MAX_ATTEMPTS = 3;
 export const META_INBOUND_RETENTION_MS = 7 * 86400 * 1000; // Meta: webhook media ids expire after 7 days
 
-// Called by the webhook for a NEW message only. Must stay fast: one insert and one queue send.
+// Safe to call again after a partial webhook failure. Only a new media row queues a download.
 export async function recordInboundMedia(env, sender, messageId, media, receivedAt) {
   const id = newId("inm");
   const ts = nowIso();
-  await run(
+  const inserted = await run(
     env.DB,
     `INSERT INTO inbound_media (id, account_id, message_id, sender_id, kind, voice, meta_media_id, declared_mime_type, declared_sha256, status, received_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?) ON CONFLICT(message_id) DO NOTHING`,
     id, sender.account_id, messageId, sender.id, media.kind, media.voice ? 1 : 0, media.metaMediaId,
     media.mimeType, media.sha256, receivedAt, ts,
   );
+  if (!inserted) return; // existing pending rows are recovered by the scheduler
   try {
     await env.CAMPAIGN_QUEUE.send({ type: "inbound_media", id, accountId: sender.account_id });
   } catch (e) {
