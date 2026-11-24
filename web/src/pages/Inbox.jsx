@@ -3,6 +3,9 @@ import { api, fmtDate } from "../api.js";
 import { Ava, Empty, ErrorBox, Loading, Pill, Strip, useAction, useApi } from "../components/ui.jsx";
 import { PreviewImage, InboundMedia, isPlaceholder } from "../components/media.jsx";
 
+import ListPagination from "../components/ListPagination.jsx";
+import { pageInfo } from "../lib/pagination.js";
+
 function dayLabel(ts) {
   const d = new Date(ts);
   const today = new Date();
@@ -107,6 +110,7 @@ export default function Inbox({ contactId }) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
   const { data, error, loading, reload } = useApi(`/inbox?status=${status}&q=${encodeURIComponent(q)}&limit=50&offset=${page * 50}`, [status,q,page]);
+  useEffect(() => { if (data && !loading) { const safe = pageInfo(data.total, page).page; if (safe !== page) setPage(safe); } }, [data,loading,page]);
   const filters = [["all","All"],["replied","Replied"],["sent","Sent"],["delivered","Delivered"],["read","Read"],["failed","Failed"],["opted_out","Opted out"]];
 
   if (contactId) {
@@ -163,7 +167,7 @@ export default function Inbox({ contactId }) {
           ))}
         </div>
       )}
-      {data && <div className="row"><span className="mut grow">{data.total} {data.total === 1 ? "conversation" : "conversations"}</span><button className="secondary" disabled={!page} onClick={() => setPage(page - 1)}>Previous</button><button className="secondary" disabled={(page + 1) * 50 >= data.total} onClick={() => setPage(page + 1)}>Next</button></div>}
+      {data && <ListPagination total={data.total} page={page} onPage={setPage} noun="conversations" busy={loading} />}
     </>
   );
 }
