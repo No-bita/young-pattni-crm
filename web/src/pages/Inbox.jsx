@@ -101,7 +101,6 @@ function Thread({ contactId, onSent }) {
           <div className="small mut" style={{ marginTop: 6 }}>Each reply costs ₹0.50.</div>
         </>
       )}
-      {data && <ListPagination total={data.total} page={page} onPage={setPage} noun="conversations" busy={loading} />}
     </>
   );
 }
@@ -168,7 +167,7 @@ export default function Inbox({ contactId }) {
           ))}
         </div>
       )}
-      {data && <div className="row"><span className="mut grow">{data.total} {data.total === 1 ? "conversation" : "conversations"}</span><button className="secondary" disabled={!page} onClick={() => setPage(page - 1)}>Previous</button><button className="secondary" disabled={(page + 1) * 50 >= data.total} onClick={() => setPage(page + 1)}>Next</button></div>}
+      {data && <ListPagination total={data.total} page={page} onPage={setPage} noun="conversations" busy={loading} />}
     </>
   );
 }

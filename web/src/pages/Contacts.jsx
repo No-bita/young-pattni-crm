@@ -73,7 +73,6 @@ function Importer({ onDone }) {
             )}
           </div>
         )}
-        {data && <ListPagination total={data.total} page={page} onPage={setPage} noun="contacts" busy={loading} />}
       </div>
     </div>
   );
@@ -165,6 +164,7 @@ export default function Contacts() {
 
           </>
         )}
+        {data && <ListPagination total={data.total} page={page} onPage={setPage} noun="contacts" busy={loading} />}
       </div>
     </>
   );
