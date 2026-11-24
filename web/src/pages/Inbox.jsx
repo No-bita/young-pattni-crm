@@ -98,12 +98,17 @@ function Thread({ contactId, onSent }) {
           <div className="small mut" style={{ marginTop: 6 }}>Each reply costs ₹0.50.</div>
         </>
       )}
+      {data && <div className="row"><span className="mut grow">{data.total} {data.total === 1 ? "conversation" : "conversations"}</span><button className="secondary" disabled={!page} onClick={() => setPage(page - 1)}>Previous</button><button className="secondary" disabled={(page + 1) * 50 >= data.total} onClick={() => setPage(page + 1)}>Next</button></div>}
     </>
   );
 }
 
 export default function Inbox({ contactId }) {
-  const { data, error, loading, reload } = useApi("/inbox");
+  const [status, setStatus] = useState("all");
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(0);
+  const { data, error, loading, reload } = useApi(`/inbox?status=${status}&q=${encodeURIComponent(q)}&limit=50&offset=${page * 50}`, [status,q,page]);
+  const filters = [["all","All"],["replied","Replied"],["sent","Sent"],["delivered","Delivered"],["read","Read"],["failed","Failed"],["opted_out","Opted out"]];
 
   if (contactId) {
     return (
@@ -125,9 +130,15 @@ export default function Inbox({ contactId }) {
         <button type="button" className="secondary" onClick={reload} disabled={loading} aria-label="Refresh inbox">{loading ? "Refreshing…" : "Refresh"}</button>
       </div>
 
+      <div className="row" style={{ marginBottom: 12, flexWrap: "nowrap" }}>
+        <input className="grow" aria-label="Search Inbox" placeholder="Search name or number" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+        <select aria-label="Inbox status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
+          {filters.map(([key,label]) => <option key={key} value={key}>{label} ({data?.counts?.[key] ?? 0})</option>)}
+        </select>
+      </div>
       <ErrorBox error={error} onRetry={reload} />
       {loading && !data ? <Loading /> : data && data.conversations.length === 0 ? (
-        <div className="card"><Empty>No conversations yet.</Empty></div>
+        <div className="card"><Empty>{q || status !== "all" ? "No conversations match these filters." : "No conversations yet."}</Empty></div>
       ) : data && (
         <div className="card" style={{ padding: "6px 16px" }}>
           {data.conversations.map((c) => (
@@ -153,6 +164,7 @@ export default function Inbox({ contactId }) {
           ))}
         </div>
       )}
+      {data && <div className="row"><span className="mut grow">{data.total} {data.total === 1 ? "conversation" : "conversations"}</span><button className="secondary" disabled={!page} onClick={() => setPage(page - 1)}>Previous</button><button className="secondary" disabled={(page + 1) * 50 >= data.total} onClick={() => setPage(page + 1)}>Next</button></div>}
     </>
   );
 }
