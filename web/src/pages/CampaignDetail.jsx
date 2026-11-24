@@ -10,7 +10,7 @@ import ImportBatchFilter from "../components/ImportBatchFilter.jsx";
 const TONE = { completed: "g", sending: "a", scheduled: "a", draft: "n", cancelled: "n" };
 const LABEL = { completed: "Completed", sending: "Sending", scheduled: "Scheduled", draft: "Draft", cancelled: "Cancelled" };
 
-function AudienceStep({ campaign, initialIds, onSaved }) {
+function AudienceStep({ campaign, initialIds, onSaved, recoveryNote }) {
   const [selected, setSelected] = useState(() => new Set(initialIds || []));
   const [q, setQ] = useState("");
   const [importId, setImportId] = useState("");
@@ -42,6 +42,7 @@ function AudienceStep({ campaign, initialIds, onSaved }) {
   return (
     <>
       <div className="head"><h1>Who receives it</h1><span className="small faint">2 of 3</span></div>
+      {recoveryNote && <div className="alert warn" role="alert">{recoveryNote}</div>}
       <ErrorBox error={action.error || list.error} />
       {note && <div className="alert ok">{note}</div>}
       <div className="card"><ImportBatchFilter value={importId} onChange={(id) => { setImportId(id); setPage(0); setNote(null); }} /><div className="small mut" style={{ marginTop: 8 }}>Select all matching adds eligible contacts from this batch to your selection. Opted-out contacts are excluded. The saved audience is a fixed list, not a live batch.</div></div>
@@ -127,6 +128,8 @@ function ReviewStep({ campaign, template, onLaunched, onChanged }) {
   return (
     <>
       <div className="head"><h1>Review and send</h1><span className="small faint">3 of 3</span></div>
+      <div className="row" style={{ marginBottom: 12 }}><button className="secondary" onClick={() => go(`/campaigns/${campaign.id}/audience`)}>Change audience</button></div>
+      {blocker && <div className="alert bad" role="alert">{blocker.message}{blocker.code === "AUDIENCE_EMPTY" && <div style={{ marginTop: 8 }}><button className="secondary" onClick={() => go(`/campaigns/${campaign.id}/audience`)}>Choose contacts</button></div>}</div>}
       <ErrorBox error={preview.error || action.error} />
       <div className="stats" style={{ marginBottom: 12 }}>
         <div className="stat"><b>{a?.sendable ?? 0}</b><span className="mut">will receive it</span></div>
@@ -162,7 +165,6 @@ function ReviewStep({ campaign, template, onLaunched, onChanged }) {
       )}
       {blocker ? (
         <>
-          <div className="alert bad">{blocker.message}</div>
           {mediaBlocked && template?.needsImage && (
             <ImageUpload key={`replace-${campaign.id}`} templateId={campaign.id} asset={null} onUploaded={replaceImage} />
           )}
@@ -182,8 +184,7 @@ function ReviewStep({ campaign, template, onLaunched, onChanged }) {
             <span className="grow">Send to exactly {a?.sendable} contacts</span>
           </label>
           <div className="row">
-            <button className="secondary" onClick={() => go(`/campaigns/${campaign.id}/audience`)}>Change audience</button>
-            <button className="grow" style={{ justifyContent: "center" }} disabled={!confirmed || action.busy || (mode === "later" && !when)} onClick={launch}>
+            <button className="grow" style={{ justifyContent: "center" }} disabled={!confirmed || action.busy || !a?.sendable || Boolean(preview.error) || (mode === "later" && !when)} onClick={launch}>
               {mode === "later" ? "Schedule campaign" : `Send to ${a?.sendable} contacts`}
             </button>
           </div>
@@ -305,7 +306,7 @@ export default function CampaignDetail({ id, step }) {
   const campaign = data?.campaign;
   const current = useMemo(() => {
     if (!campaign || campaign.status !== "draft") return null;
-    if (step === "audience" || !campaign.audience.chosen) return "audience";
+    if (step === "audience" || !campaign.audience.chosen || campaign.audience.sendable === 0) return "audience";
     return "review";
   }, [campaign, step]);
 
@@ -325,7 +326,7 @@ export default function CampaignDetail({ id, step }) {
         {!current && <button type="button" className="secondary" onClick={reload} disabled={loading} aria-label="Refresh campaign">{loading ? "Refreshing…" : "Refresh"}</button>}
       </div>
       {showSteps && !current && <div className="sub">{campaign.templateName} from {campaign.senderNumber || "the active number"}</div>}
-      {current === "audience" && <AudienceStep campaign={campaign} initialIds={data.audienceIds} onSaved={() => { go(`/campaigns/${id}/review`); reload(); }} />}
+      {current === "audience" && <AudienceStep campaign={campaign} initialIds={campaign.audience.sendable === 0 ? [] : data.audienceIds} recoveryNote={campaign.audience.sendable === 0 ? (campaign.audience.selected > 0 && campaign.audience.suppressed === campaign.audience.selected ? "Every selected contact has opted out. Choose at least one contact who can receive messages before continuing." : "Choose at least one contact who can receive messages before continuing. No messages have been sent from this draft.") : null} onSaved={() => { go(`/campaigns/${id}/review`); reload(); }} />}
       {current === "review" && <ReviewStep campaign={campaign} template={data.template} onLaunched={() => { go(`/campaigns/${id}`); reload(); }} onChanged={reload} />}
       {!current && <Progress campaign={campaign} reload={reload} />}
     </>
