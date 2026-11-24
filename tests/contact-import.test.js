@@ -9,8 +9,6 @@ for (const [label, rows] of [
   ["missing names", [{ phone }]],
   ["whitespace names", [{ phone, name: " \t " }]],
   ["name only on invalid phone", [{ phone }, { phone: "bad", name: "Riya" }]],
-  ["blank duplicate overwritten with name", [{ phone, name: "" }, { phone: "+91 98765 43210", name: "Riya" }]],
-  ["named duplicate overwritten with blank", [{ phone, name: "Riya" }, { phone: "+91 98765 43210", name: "" }]],
 ]) {
   test(`import rejects ${label} without any database writes`, async () => {
     const env = makeEnv();
@@ -46,7 +44,7 @@ test("fully named imports still work and preserve suppression, invalid rows and 
 });
 
 test("CSV guard handles missing header, whitespace, aliases, BOM and quoted names", () => {
-  for (const [csv, sourceRow] of [["phone\n9876543210", 2], ["phone,name\n9876543210,   ", 2], ["phone,name\n9876543210,\nbad,Riya", 2], ["phone,name\n9876543210,Riya\n+91 98765 43210,", 3]]) {
+  for (const [csv, sourceRow] of [["phone\n9876543210", 2], ["phone,name\n9876543210,   ", 2], ["phone,name\n9876543210,\nbad,Riya", 2]]) {
     assert.equal(toImportRows(parseCsv(csv)).error, missingNamesError([sourceRow]));
   }
   const out = toImportRows(parseCsv('\uFEFFMobile,Full Name\r\n9876543210,"Riya, S"\r\n9876543211,Other\r\n'));
@@ -78,4 +76,50 @@ test("API reports original spreadsheet rows and caps the list at ten before any 
   assert.equal(r.data.moreMissingNameRows, 2);
   assert.match(r.data.error, /and 2 more/);
   assert.equal(env.DB.q("SELECT * FROM contacts").length, 0);
+});
+
+for (const rows of [
+  [{ phone, name: "" }, { phone: "+91 98765 43210", name: "Riya" }],
+  [{ phone, name: "Riya" }, { phone: "+91 98765 43210", name: " \t " }],
+]) {
+  test(`named duplicate rescues blank row in order ${rows[0].name ? "named-first" : "blank-first"}`, async () => {
+    const env = makeEnv();
+    await createAccount(env, { login: "duplicate@test.in" });
+    const client = await login(env, "duplicate@test.in");
+    const r = await client.post("/api/contacts/import", { rows });
+    assert.equal(r.status, 200);
+    assert.equal(r.data.created, 1);
+    assert.equal(r.data.duplicatesInFile, 1);
+    assert.equal(env.DB.q("SELECT name FROM contacts")[0].name, "Riya");
+    const csv = toImportRows([["phone", "name"], ...rows.map((r) => [r.phone, r.name])]);
+    assert.equal(csv.error, undefined);
+  });
+}
+
+test("only unrescued blank numbers block, with all their original row numbers", async () => {
+  const env = makeEnv();
+  await createAccount(env, { login: "duplicate@test.in" });
+  const client = await login(env, "duplicate@test.in");
+  const rows = [
+    { phone, name: "", sourceRow: 2 }, { phone, name: "Riya", sourceRow: 3 },
+    { phone: "9876543211", name: "", sourceRow: 5 },
+    { phone: "+91 98765 43211", name: "", sourceRow: 9 },
+    { phone: "invalid", name: "Someone", sourceRow: 10 },
+  ];
+  const r = await client.post("/api/contacts/import", { rows });
+  assert.equal(r.status, 400);
+  assert.deepEqual(r.data.missingNameRows, [5,9]);
+  assert.equal(env.DB.q("SELECT * FROM contacts").length, 0);
+});
+
+test("last nonblank duplicate name wins, never a trailing blank", async () => {
+  const env = makeEnv();
+  await createAccount(env, { login: "duplicate@test.in" });
+  const client = await login(env, "duplicate@test.in");
+  const r = await client.post("/api/contacts/import", { rows: [
+    { phone, name: "First" }, { phone, name: "Final" }, { phone, name: "" },
+  ] });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.duplicatesInFile, 2);
+  assert.equal(env.DB.q("SELECT name FROM contacts")[0].name, "Final");
 });
