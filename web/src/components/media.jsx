@@ -55,7 +55,7 @@ export function InboundMedia({ media }) {
     return <div className="bub-img placeholder small-ph" role="img" aria-label={`${label} not available`}>{label} not available{media.error ? `: ${media.error}` : ""}</div>;
   }
   if (media.kind === "image") {
-    return <PreviewImage src={media.url} alt="Photo from contact" failedText="Photo could not be loaded" />;
+    return <div className="stack" style={{ gap: 8 }}><a href={media.url} target="_blank" rel="noopener noreferrer" aria-label="Open photo full size in a new tab" style={{ display: "block", cursor: "pointer" }}><PreviewImage src={media.url} alt="Photo from contact" failedText="Photo could not be loaded" /></a><a className="btn secondary" style={{ alignSelf: "flex-start" }} href={media.url} target="_blank" rel="noopener noreferrer">Open full image ↗</a></div>;
   }
   return (
     <div className="bub-audio">
