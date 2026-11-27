@@ -45,7 +45,8 @@ test("fully named imports still work and preserve suppression, invalid rows and 
 
 test("CSV guard handles missing header, whitespace, aliases, BOM and quoted names", () => {
   for (const [csv, sourceRow] of [["phone\n9876543210", 2], ["phone,name\n9876543210,   ", 2], ["phone,name\n9876543210,\nbad,Riya", 2]]) {
-    assert.equal(toImportRows(parseCsv(csv)).error, missingNamesError([sourceRow]));
+    // The in-browser no-name check is switched off for now; the server still enforces it.
+    assert.equal(toImportRows(parseCsv(csv)).error, undefined);
   }
   const out = toImportRows(parseCsv('\uFEFFMobile,Full Name\r\n9876543210,"Riya, S"\r\n9876543211,Other\r\n'));
   assert.equal(out.error, undefined);
@@ -56,12 +57,14 @@ test("CSV guard handles missing header, whitespace, aliases, BOM and quoted name
 test("CSV guard checks the entire file, not just the first five preview rows", () => {
   const rows = Array.from({ length: 6 }, (_, i) => [`987654321${i}`, i === 5 ? "" : "Named"]);
   const out = toImportRows([["phone", "name"], ...rows]);
-  assert.equal(out.error, missingNamesError([7]));
+  assert.equal(out.error, undefined); // in-browser check switched off for now
+  assert.equal(out.rows.length, 6);
 });
 
 test("source row numbers survive empty rows and quoted multiline cells", () => {
   const out = toImportRows(parseCsv('phone,name\n9876543210,"Riya\nS"\n\n9876543211,\n'));
-  assert.equal(out.error, missingNamesError([4]));
+  assert.equal(out.error, undefined); // in-browser no-name check switched off for now
+  assert.deepEqual(out.rows.map((r) => r.sourceRow), [2, 4]);
 });
 
 test("API reports original spreadsheet rows and caps the list at ten before any write", async () => {
@@ -122,4 +125,13 @@ test("explicit chosen duplicate name wins, never a trailing blank", async () => 
   assert.equal(r.status, 200);
   assert.equal(r.data.duplicatesInFile, 2);
   assert.equal(env.DB.q("SELECT name FROM contacts")[0].name, "Final");
+});
+
+test("row 1 is ignored, phone and name columns are auto-detected, BOM is stripped", () => {
+  const a = toImportRows(parseCsv("\uFEFFanything,else\nRiya,9876543210\nSam,+44 7700 900123\n"));
+  assert.deepEqual(a.rows.map((r) => [r.name, r.phone, r.sourceRow]), [["Riya", "9876543210", 2], ["Sam", "+44 7700 900123", 3]]);
+  const b = toImportRows(parseCsv("x,y\n9876543210,Riya\n"));
+  assert.deepEqual(b.rows.map((r) => [r.name, r.phone]), [["Riya", "9876543210"]]);
+  const c = toImportRows(parseCsv("9876543210,Riya\n9876543211,Sam\n"));
+  assert.equal(c.rows.length, 1); // row 1 is skipped even when it holds data
 });

@@ -1,6 +1,6 @@
 import { unzipSync } from "fflate";
 import readExcelFile from "read-excel-file/universal";
-import { parseCsv, toImportRows } from "./contactCsv.js";
+import { parseCsv, toImportRows, detectPhoneColumn } from "./contactCsv.js";
 
 export const MAX_CONTACT_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 24 * 1024 * 1024;
@@ -32,21 +32,16 @@ export async function readContactFile(file) {
 
 export function contactSheetRows(sheet) {
   try {
-    const headers = (sheet.data[0] || []).map((value) => String(value ?? "").trim().toLowerCase());
-    const phoneColumns = headers.map((header,index)=>["phone", "mobile", "number", "phone number", "whatsapp"].includes(header)?index:-1).filter(index=>index>=0);
-    const columns = headers.map((header, index) => ["phone", "mobile", "number", "phone number", "whatsapp", "name", "full name", "contact name"].includes(header) ? index : -1).filter((index) => index >= 0);
-    const table = sheet.data.map((row, rowIndex) => row.map((value, columnIndex) => {
-      if (rowIndex > 0 && !columns.includes(columnIndex)) return "";
+    // Only the first two columns are read; row 1 is ignored.
+    const raw = sheet.data.map((row) => [row[0], row[1]]);
+    const phoneCol = detectPhoneColumn(raw.map((row) => row.map((value) => (typeof value === "string" ? value : value == null ? "" : String(value)))));
+    const table = raw.map((row, rowIndex) => row.map((value, columnIndex) => {
       if (value == null) return "";
       // Bad phone cells become invalid rows, not a whole-file error. Do not round
       // unsafe numbers or stringify a date as a plausible phone number.
-      if (rowIndex > 0 && phoneColumns.includes(columnIndex) && typeof value !== "string" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)) return "[invalid phone cell: use text or a whole number]";
-      if (typeof value === "number") {
-        if (!Number.isSafeInteger(value) || value < 0) throw new Error("Use text cells for phone numbers. A numeric cell is not a safe whole number.");
-        return String(value);
-      }
-      if (typeof value !== "string") throw new Error("Use text for phone numbers and names, not dates or true/false cells.");
-      return value;
+      if (rowIndex > 0 && columnIndex === phoneCol && typeof value !== "string" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)) return "[invalid phone cell: use text or a whole number]";
+      if (typeof value === "number") return Number.isSafeInteger(value) && value >= 0 ? String(value) : "";
+      return typeof value === "string" ? value : "";
     }));
     const parsed = toImportRows(table);
     if (parsed.error) return parsed;
