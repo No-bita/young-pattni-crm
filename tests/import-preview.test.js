@@ -14,8 +14,8 @@ test('existing names are account-scoped choices; stale or invented choices rejec
  for(const choice of [{name:'Invented',candidates:['Existing','Riya','Riya S']},{name:'Riya',candidates:['Riya','Riya S']}])assert.equal((await a.post('/api/contacts/import',{importName:'Bad',rows,nameChoices:{'919876543210':choice}})).status,409);
  assert.equal(env.DB.q('SELECT * FROM contact_imports').length,0);assert.equal(env.DB.q('SELECT name FROM contacts')[0].name,'Existing');
 });
-test('blank-name grouping still blocks and invalid row errors use source rows',async()=>{
- const {a}=await setup();assert.equal((await a.post('/api/contacts/import/preview',{rows:[{phone:'9876543210',name:'',sourceRow:8}]})).status,400);
+test('blank-name rows pass preview while the server check is off, and invalid row errors use source rows',async()=>{
+ const {a}=await setup();assert.equal((await a.post('/api/contacts/import/preview',{rows:[{phone:'9876543210',name:'',sourceRow:8}]})).status,200);
  const p=await a.post('/api/contacts/import/preview',{rows:[{phone:'bad',name:'Invalid',sourceRow:9},{phone:'9876543210',name:'Riya'}]});assert.equal(p.data.invalid[0].row,9);assert.equal(p.data.conflicts.length,0);
 });
 test('skip and list: malformed India numbers keep original rows; valid formats import',async()=>{

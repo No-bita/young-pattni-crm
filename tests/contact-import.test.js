@@ -10,18 +10,15 @@ for (const [label, rows] of [
   ["whitespace names", [{ phone, name: " \t " }]],
   ["name only on invalid phone", [{ phone }, { phone: "bad", name: "Riya" }]],
 ]) {
-  test(`import rejects ${label} without any database writes`, async () => {
+  // Server-side no-name check is temporarily off: nameless rows import and keep any saved name.
+  test(`import allows ${label} and keeps the existing saved name`, async () => {
     const env = makeEnv();
     await createAccount(env, { login: "import@test.in" });
     const client = await login(env, "import@test.in");
     await client.post("/api/contacts", { phone, name: "Existing" });
-    const before = env.DB.q("SELECT * FROM contacts");
-    env.DB.batch = () => { throw new Error("Rejected import must not write a batch"); };
     const result = await client.post("/api/contacts/import", { importName: "Test import", rows });
-    assert.equal(result.status, 400);
-    assert.equal(result.data.error, missingNamesError([rows.findIndex((r) => !r.name?.trim()) + 2]));
-    assert.equal(result.data.code, "MISSING_IMPORT_NAMES");
-    assert.deepEqual(env.DB.q("SELECT * FROM contacts"), before);
+    assert.equal(result.status, 200);
+    assert.equal(env.DB.q("SELECT name FROM contacts")[0].name, "Existing");
   });
 }
 
@@ -67,18 +64,15 @@ test("source row numbers survive empty rows and quoted multiline cells", () => {
   assert.deepEqual(out.rows.map((r) => r.sourceRow), [2, 4]);
 });
 
-test("API reports original spreadsheet rows and caps the list at ten before any write", async () => {
+test("nameless rows import with a blank name while the server check is off", async () => {
   const env = makeEnv();
   await createAccount(env, { login: "rows@test.in" });
   const client = await login(env, "rows@test.in");
-  const rows = Array.from({ length: 12 }, (_, i) => ({ phone, name: "", sourceRow: i + 5 }));
+  const rows = Array.from({ length: 12 }, (_, i) => ({ phone: `98765432${String(10 + i)}`, name: "", sourceRow: i + 5 }));
   const r = await client.post("/api/contacts/import", { importName: "Test import", rows });
-  assert.equal(r.status, 400);
-  assert.equal(r.data.missingNameCount, 12);
-  assert.deepEqual(r.data.missingNameRows, [5,6,7,8,9,10,11,12,13,14]);
-  assert.equal(r.data.moreMissingNameRows, 2);
-  assert.match(r.data.error, /and 2 more/);
-  assert.equal(env.DB.q("SELECT * FROM contacts").length, 0);
+  assert.equal(r.status, 200);
+  assert.equal(r.data.created, 12);
+  assert.equal(env.DB.q("SELECT * FROM contacts WHERE name=''").length, 12);
 });
 
 for (const rows of [
@@ -99,7 +93,7 @@ for (const rows of [
   });
 }
 
-test("only unrescued blank numbers block, with all their original row numbers", async () => {
+test("unrescued blank numbers import with a blank name while the server check is off", async () => {
   const env = makeEnv();
   await createAccount(env, { login: "duplicate@test.in" });
   const client = await login(env, "duplicate@test.in");
@@ -110,9 +104,9 @@ test("only unrescued blank numbers block, with all their original row numbers", 
     { phone: "invalid", name: "Someone", sourceRow: 10 },
   ];
   const r = await client.post("/api/contacts/import", { importName: "Test import", rows });
-  assert.equal(r.status, 400);
-  assert.deepEqual(r.data.missingNameRows, [5,9]);
-  assert.equal(env.DB.q("SELECT * FROM contacts").length, 0);
+  assert.equal(r.status, 200);
+  assert.equal(r.data.created, 2);
+  assert.equal(env.DB.q("SELECT * FROM contacts WHERE name=''").length, 1);
 });
 
 test("explicit chosen duplicate name wins, never a trailing blank", async () => {

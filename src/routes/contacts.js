@@ -97,7 +97,8 @@ contacts.post("/import/preview", async (c) => {
   const body = await readJson(c);
   if (!Array.isArray(body.rows) || !body.rows.length || body.rows.length > MAX_IMPORT_ROWS) return c.json({error:"Choose 1 to 5000 contact rows."},400);
   const preview = await previewContactImport(c.env.DB, accountId(c), body.rows);
-  if (preview.missingNameRows.length) return c.json({error:missingNamesError(preview.missingNameRows),code:"MISSING_IMPORT_NAMES"},400);
+  // TEMPORARILY OFF: nameless rows are allowed through preview. Restore the next line to block them again.
+  // if (preview.missingNameRows.length) return c.json({error:missingNamesError(preview.missingNameRows),code:"MISSING_IMPORT_NAMES"},400);
   return c.json({ contacts: preview.list, conflicts: preview.conflicts, invalid: preview.invalid, duplicatesInFile: preview.duplicatesInFile });
 });
 
@@ -110,7 +111,8 @@ contacts.post("/import", async (c) => {
   const id = accountId(c);
   const preview = await previewContactImport(c.env.DB, id, rows);
   const {list,invalid,missingNameRows}=preview;
-  if (missingNameRows.length) return c.json({ error: missingNamesError(missingNameRows), code: "MISSING_IMPORT_NAMES", missingNameCount: missingNameRows.length, missingNameRows: missingNameRows.slice(0, 10), moreMissingNameRows: Math.max(0, missingNameRows.length - 10) }, 400);
+  // TEMPORARILY OFF: nameless rows are allowed to import. Restore the next line to block them again.
+  // if (missingNameRows.length) return c.json({ error: missingNamesError(missingNameRows), code: "MISSING_IMPORT_NAMES", missingNameCount: missingNameRows.length, missingNameRows: missingNameRows.slice(0, 10), moreMissingNameRows: Math.max(0, missingNameRows.length - 10) }, 400);
 
   if(!list.length) return c.json({error:"No valid phone numbers to import. Fix the listed rows and choose the file again.",code:"NO_VALID_IMPORT_CONTACTS",invalid},400);
   const name = str(body.importName, 120);
