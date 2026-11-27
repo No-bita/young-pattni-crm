@@ -4,20 +4,21 @@ import { Ava, Empty, ErrorBox, Loading, Strip, useAction, useApi } from "../comp
 
 // Minimal RFC 4180-style CSV parser (quoted fields, escaped quotes, CRLF).
 export function parseCsv(text) {
+  const clean = text.startsWith("\uFEFF") ? text.slice(1) : text;
   const rows = [];
   let row = [];
   let field = "";
   let q = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
     if (q) {
-      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      if (ch === '"' && clean[i + 1] === '"') { field += '"'; i++; }
       else if (ch === '"') q = false;
       else field += ch;
     } else if (ch === '"') q = true;
     else if (ch === ",") { row.push(field); field = ""; }
     else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i++;
+      if (ch === "\r" && clean[i + 1] === "\n") i++;
       row.push(field); rows.push(row); row = []; field = "";
     } else field += ch;
   }
@@ -25,13 +26,35 @@ export function parseCsv(text) {
   return rows.filter((r) => r.some((c) => c.trim()));
 }
 
+function looksLikePhone(val) {
+  const s = (val || "").trim();
+  return /^[+\d\s\-().]+$/.test(s) && s.replace(/\D/g, "").length >= 6;
+}
+
 function toImportRows(table) {
   if (!table.length) return { rows: [], error: "The file is empty." };
-  const header = table[0].map((h) => h.trim().toLowerCase());
-  const phoneCol = header.findIndex((h) => ["phone", "mobile", "number", "phone number", "whatsapp"].includes(h));
-  const nameCol = header.findIndex((h) => ["name", "full name", "contact name"].includes(h));
-  if (phoneCol === -1) return { rows: [], error: 'Add a header row with a "phone" column (and optionally "name").' };
-  return { rows: table.slice(1).map((r) => ({ phone: (r[phoneCol] || "").trim(), name: nameCol >= 0 ? (r[nameCol] || "").trim() : "" })) };
+  const dataRows = table.slice(1);
+  if (!dataRows.length) return { rows: [], error: "No data rows found after row 1." };
+
+  const sample = dataRows.slice(0, 50);
+  let col0Phones = 0;
+  let col1Phones = 0;
+  for (const r of sample) {
+    if (looksLikePhone(r[0])) col0Phones++;
+    if (looksLikePhone(r[1])) col1Phones++;
+  }
+  if (col0Phones === 0 && col1Phones === 0) {
+    return { rows: [], error: "Could not find a column with phone numbers." };
+  }
+
+  const phoneCol = col1Phones > col0Phones ? 1 : 0;
+  const nameCol = phoneCol === 0 ? 1 : 0;
+  return {
+    rows: dataRows.map((r) => ({
+      phone: (r[phoneCol] || "").trim(),
+      name: (r[nameCol] || "").trim(),
+    })),
+  };
 }
 
 function Importer({ onDone }) {
