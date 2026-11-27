@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { defaultImportName } from "../lib/importName.js";
+import { defaultNameChoices } from "../lib/nameDefaults.js";
 import { readContactFile, contactSheetRows } from "../lib/contactFile.js";
 import { api, fmtDate } from "../api.js";
 import { Ava, Empty, ErrorBox, Loading, Strip, useAction, useApi } from "../components/ui.jsx";
@@ -64,7 +65,7 @@ function Importer({ onDone }) {
     try {
       const data=await api("/contacts/import/preview",{method:"POST",body:{rows:parsed.rows}});
       if(version !== selection.current) return;
-      setPreview(data); setNameChoices({}); setRequestId(crypto.randomUUID());
+      setPreview(data); setNameChoices(defaultNameChoices(data.conflicts)); setRequestId(crypto.randomUUID());
     } finally {setChecking(false);}
   });
   const unresolved = preview?.conflicts.filter(group=>!nameChoices[group.phone]).length || 0;
