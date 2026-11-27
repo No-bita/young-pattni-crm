@@ -35,10 +35,17 @@ function toImportRows(table) {
 }
 
 // Pre-import review: shown only when the file would change a saved name or repeats a number
-// with different names. Nothing is preselected; every conflict needs an explicit choice.
+// with different names. Repeated numbers default to the later entry in the file; saved-name
+// conflicts still require an explicit choice.
 function ConflictReview({ review, busy, onCancel, onImport }) {
   const [choices, setChoices] = useState({});
-  const [repeatChoices, setRepeatChoices] = useState({});
+  const [repeatChoices, setRepeatChoices] = useState(() =>
+    Object.fromEntries(
+      review.repeats
+        .filter((r) => r.names?.length)
+        .map((r) => [r.phone, r.names[r.names.length - 1].name]),
+    ),
+  );
   const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
   const allResolved = review.conflicts.every((c) => has(choices, c.phone)) && review.repeats.every((r) => has(repeatChoices, r.phone));
   const setAll = (v) => setChoices(Object.fromEntries(review.conflicts.map((c) => [c.phone, v])));
